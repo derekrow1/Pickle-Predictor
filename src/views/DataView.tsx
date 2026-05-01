@@ -5,6 +5,7 @@ import {
   importWarehouseInventory,
   parseLotControlReport,
   isLotControlFormat,
+  isInventorySnapshotFormat,
 } from "../lib/importers";
 import type { LotControlImportResult } from "../lib/importers";
 import { cleanShopifyRows } from "../lib/cleanShopify";
@@ -72,8 +73,8 @@ export function DataView() {
     for (const file of files) {
       try {
         const parsed = await parseFile(file);
-        if (isLotControlFormat(parsed)) {
-          // Lot Control Roll Forward — one warehouse per file
+        if (isLotControlFormat(parsed) || isInventorySnapshotFormat(parsed)) {
+          // Single-warehouse-per-file (Lot Control Roll Forward OR Inventory snapshot)
           const result = parseLotControlReport(parsed, whIds);
           newStaged.push({
             filename: file.name,

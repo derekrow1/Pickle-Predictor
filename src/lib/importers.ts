@@ -69,18 +69,55 @@ export function isLotControlFormat(parsed: ParsedFile): boolean {
   return firstCell.includes("lot control") || firstCell.includes("roll forward");
 }
 
-/** Detects a warehouse id from a filename like "Joshs_Pickles-MO_RollFwd_Lot_Control_2026-04-18.xls". */
+/**
+ * Returns true if the file looks like a Smartwarehousing single-warehouse inventory
+ * snapshot (e.g. Joshspicklesmo_Inventory_*.xls). Headers at row 0; has a SKU column
+ * and a Quantity column (no per-warehouse columns).
+ */
+export function isInventorySnapshotFormat(parsed: ParsedFile): boolean {
+  const headers = (parsed.rawArrays[0] || []).map((h: any) =>
+    String(h || "").trim().toLowerCase(),
+  );
+  const hasSku = headers.includes("sku");
+  const hasQty =
+    headers.includes("quantity") || headers.includes("on hand") || headers.includes("on hand + open");
+  // Must NOT have per-warehouse columns (which would mean COUNT-style multi-warehouse)
+  const hasPerWh = headers.some((h) => /^(mo|pa|nv)\s*qty/i.test(h));
+  return hasSku && hasQty && !hasPerWh;
+}
+
+/**
+ * Detects a warehouse id from a filename. Handles both:
+ *   - "Joshs_Pickles-MO_RollFwd_..." (separator-bounded)
+ *   - "Joshspicklesmo_Inventory_..." (glued to a longer string)
+ *
+ * Boundary matches win first; falls back to substring search.
+ */
 export function detectWarehouseFromFilename(
   filename: string,
   warehouseIds: string[],
 ): string | null {
   const upper = filename.toUpperCase();
+  // Pass 1: separator-bounded match (highest confidence)
   for (const id of warehouseIds) {
     const idU = id.toUpperCase();
-    // Match the id surrounded by typical separators or at boundaries
     const re = new RegExp(`(^|[^A-Z])${idU}([^A-Z]|$)`);
     if (re.test(upper)) return id;
   }
+  // Pass 2: substring (catches "joshspicklesmo")
+  for (const id of warehouseIds) {
+    const idU = id.toUpperCase();
+    if (upper.includes(idU)) return id;
+  }
+  return null;
+}
+
+/** Parse a date from a filename. Handles YYYY-MM-DD and YYYYMMDD. */
+function dateFromFilename(filename: string): string | null {
+  const dashed = filename.match(/(\d{4}-\d{2}-\d{2})/);
+  if (dashed) return dashed[1];
+  const compact = filename.match(/(\d{4})(\d{2})(\d{2})/);
+  if (compact) return `${compact[1]}-${compact[2]}-${compact[3]}`;
   return null;
 }
 
@@ -129,6 +166,7 @@ export function parseLotControlReport(
   const idxDesc = findCol("description");
   const idxOnHandOpen = findCol("on hand + open");
   const idxOnHand = findCol("on hand");
+  const idxQuantity = findCol("quantity"); // Inventory snapshot format uses this column
 
   const warnings: string[] = [];
   if (idxSku < 0) {
@@ -166,10 +204,7 @@ export function parseLotControlReport(
     if (onHandMatch) onHandTimestamp = onHandMatch[1];
   }
   let snapshotDate = periodEnd;
-  if (!snapshotDate) {
-    const m = parsed.filename.match(/(\d{4}-\d{2}-\d{2})/);
-    if (m) snapshotDate = m[1];
-  }
+  if (!snapshotDate) snapshotDate = dateFromFilename(parsed.filename);
   if (!snapshotDate) snapshotDate = ISO(new Date());
 
   const warehouseHint = detectWarehouseFromFilename(parsed.filename, warehouseIds);
@@ -189,6 +224,11 @@ export function parseLotControlReport(
       warnings.push(`Excluded HOLD stock: ${sku}`);
       continue;
     }
+    if (sku.startsWith("D_")) {
+      // DAMAGED stock — not sellable
+      warnings.push(`Excluded DAMAGED stock: ${sku}`);
+      continue;
+    }
     if (/sticker|label/i.test(sku)) continue;
 
     let demandKey = inventorySkuMap[sku];
@@ -197,8 +237,12 @@ export function parseLotControlReport(
       demandKey = inventorySkuMap[desc] || "";
     }
 
+    // Pick whichever qty column exists, in priority order:
+    //   On Hand + Open (Lot Control) > On Hand > Quantity (Inventory snapshot)
     const qtyRaw =
-      row[idxOnHandOpen] ?? (idxOnHand >= 0 ? row[idxOnHand] : 0);
+      (idxOnHandOpen >= 0 ? row[idxOnHandOpen] : undefined) ??
+      (idxOnHand >= 0 ? row[idxOnHand] : undefined) ??
+      (idxQuantity >= 0 ? row[idxQuantity] : 0);
     const qty = parseFloat(String(qtyRaw || 0)) || 0;
 
     if (!demandKey) {
