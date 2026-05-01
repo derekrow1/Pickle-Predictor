@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: #f7f9f4;
+  color: #1f2a17;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium border transition;
+  }
+  .btn-primary {
+    @apply btn bg-pickle-600 text-white border-pickle-700 hover:bg-pickle-700;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-pickle-900 border-pickle-200 hover:bg-pickle-50;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white border-red-700 hover:bg-red-700;
+  }
+  .card {
+    @apply bg-white border border-pickle-100 rounded-lg shadow-sm;
+  }
+  .input {
+    @apply px-2 py-1 rounded border border-pickle-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-pickle-300 w-full;
+  }
+  .label {
+    @apply text-xs uppercase tracking-wide text-pickle-700 font-semibold;
+  }
+  .badge {
+    @apply inline-block text-xs px-2 py-0.5 rounded-full font-medium;
+  }
+  .badge-ok { @apply badge bg-pickle-100 text-pickle-800; }
+  .badge-warn { @apply badge bg-amber-100 text-amber-800; }
+  .badge-bad { @apply badge bg-red-100 text-red-800; }
+  .badge-info { @apply badge bg-sky-100 text-sky-800; }
+  th { @apply text-left text-xs uppercase tracking-wide text-pickle-700 font-semibold py-2 px-3 border-b border-pickle-100; }
+  td { @apply py-2 px-3 text-sm align-top border-b border-pickle-50; }
+}
