@@ -1,5 +1,5 @@
-import { addWeeks, format } from "date-fns";
-import type { AppState, CleanOrderLine, MarketingEvent, AdSpendEntry, Settings, Sku } from "../types";
+import { addWeeks } from "date-fns";
+import type { CleanOrderLine, MarketingEvent, AdSpendEntry, Settings, Sku } from "../types";
 import { ISO, eachWeekStart, parseAnyDate, weekStart } from "./util";
 import { componentsForOrder } from "./packoutRules";
 

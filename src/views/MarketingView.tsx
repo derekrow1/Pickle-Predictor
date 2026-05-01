@@ -1,13 +1,12 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../store/store";
-import { fmtMoney, fmtDate, fmtDateShort, ISO, eachWeekStart, weekStart, uid, parseAnyDate } from "../lib/util";
+import { fmtMoney, fmtDate, fmtDateShort, ISO, eachWeekStart, weekStart, uid } from "../lib/util";
 import { PageHeader } from "../components/Layout";
 import { EVENT_TYPES, PLATFORM_OPTIONS } from "../lib/constants";
 
 export function MarketingView() {
   const state = useStore();
   const upsertAd = useStore((s) => s.upsertAdSpend);
-  const removeAd = useStore((s) => s.removeAdSpend);
   const upsertEvent = useStore((s) => s.upsertEvent);
   const removeEvent = useStore((s) => s.removeEvent);
 
@@ -118,7 +117,7 @@ export function MarketingView() {
   );
 }
 
-function EventEditor({ events, skus, upsert, remove }: any) {
+function EventEditor({ events, upsert, remove }: any) {
   const [draft, setDraft] = useState({
     date: ISO(new Date()),
     type: "Influencer",

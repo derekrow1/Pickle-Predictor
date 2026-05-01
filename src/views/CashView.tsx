@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../store/store";
 import { computeOrderRecs } from "../lib/orderEngine";
-import { fmtMoney, fmtNum, fmtDate, ISO } from "../lib/util";
-import { PageHeader, EmptyState } from "../components/Layout";
+import { fmtMoney, fmtDate, ISO } from "../lib/util";
+import { PageHeader } from "../components/Layout";
 import { Stat } from "../components/Stat";
 import {
   ResponsiveContainer,
@@ -36,8 +36,6 @@ export function CashView() {
     }
     return [...map.entries()].sort();
   }, [state.cleanOrders]);
-
-  const recentRevenue = weeklyRevenue.slice(-8).map(([d, v]) => ({ d, v }));
 
   // Approximate weekly costs from settings
   const settings = state.settings;
@@ -126,7 +124,7 @@ export function CashView() {
                   <XAxis dataKey="date" tickFormatter={(s) => fmtDateShort(s)} />
                   <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
                   <Tooltip
-                    formatter={(v: number) => fmtMoney(v)}
+                    formatter={(v) => fmtMoney(Number(v) || 0)}
                     labelFormatter={(s) => fmtDate(String(s))}
                   />
                   <Line type="monotone" dataKey="amount" stroke="#65902f" strokeWidth={2} />

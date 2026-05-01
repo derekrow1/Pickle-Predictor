@@ -79,7 +79,7 @@ export function ForecastView() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e3edd1" />
               <XAxis dataKey="week" />
               <YAxis />
-              <Tooltip formatter={(v: number) => fmtNum(v)} />
+              <Tooltip formatter={(v) => fmtNum(Number(v) || 0)} />
               <Legend />
               <Bar dataKey="Actual" fill="#65902f" />
               <Line dataKey="Forecast" stroke="#84ac4a" strokeWidth={2} dot={false} />

@@ -1,0 +1,8 @@
+node_modules
+dist
+sample-data
+*.csv
+*.xlsx
+*.xls
+pickle-predictor-*.json
+.DS_Store

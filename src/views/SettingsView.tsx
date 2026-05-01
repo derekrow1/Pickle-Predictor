@@ -396,7 +396,6 @@ function POCard({
   const [mode, setMode] = useState<"view" | "edit" | "receive">(
     lines.length === 0 ? "edit" : "view",
   );
-  const editing = mode === "edit";
 
   const updateLine = (idx: number, patch: Partial<OpenPOLine>) => {
     const next = lines.map((l, i) => (i === idx ? { ...l, ...patch } : l));

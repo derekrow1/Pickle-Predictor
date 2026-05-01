@@ -5,7 +5,6 @@ import {
   importWarehouseInventory,
   parseLotControlReport,
   isLotControlFormat,
-  detectWarehouseFromFilename,
 } from "../lib/importers";
 import type { LotControlImportResult } from "../lib/importers";
 import { cleanShopifyRows } from "../lib/cleanShopify";
@@ -29,7 +28,6 @@ export function DataView() {
   const setShopify = useStore((s) => s.setShopifyData);
   const appendShopify = useStore((s) => s.appendShopifyData);
   const clearShopify = useStore((s) => s.clearShopifyData);
-  const addInv = useStore((s) => s.addInventorySnapshot);
   const removeInv = useStore((s) => s.removeInventorySnapshot);
   const upsertSlice = useStore((s) => s.upsertInventorySlice);
 

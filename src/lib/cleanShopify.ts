@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import type { CleanOrderLine } from "../types";
 import { expandLineItem } from "./skuConversion";
 import { ISO, parseAnyDate } from "./util";
@@ -61,7 +60,6 @@ export function cleanShopifyRows(
       // skip pending/voided/refunded for forecast/sales math
       continue;
     }
-    const subtotal = num(pickField(head, ["Subtotal"]));
     const shipping = num(pickField(head, ["Shipping"]));
     const taxes = num(pickField(head, ["Taxes"]));
     const total = num(pickField(head, ["Total"]));

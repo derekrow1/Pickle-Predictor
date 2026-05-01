@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useStore } from "../store/store";
-import { fmtMoney, fmtNum, fmtDate, fmtDateShort, ISO, parseAnyDate, weekStart } from "../lib/util";
+import { fmtMoney, fmtNum, fmtDateShort, ISO, parseAnyDate, weekStart } from "../lib/util";
 import { PageHeader, EmptyState } from "../components/Layout";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 
@@ -106,7 +106,7 @@ export function ProfitView() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e3edd1" />
               <XAxis dataKey="week" />
               <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-              <Tooltip formatter={(v: number) => fmtMoney(v)} />
+              <Tooltip formatter={(v) => fmtMoney(Number(v) || 0)} />
               <Legend />
               <Bar dataKey="revenue" fill="#65902f" name="Revenue" />
               <Bar dataKey="profit" fill="#84ac4a" name="Profit" />

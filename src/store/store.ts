@@ -13,7 +13,6 @@ import type {
   OpenPO,
   Receipt,
   Retailer,
-  RetailVelocity,
   Settings,
   Sku,
   Warehouse,
@@ -115,7 +114,7 @@ interface Actions {
 
 export const useStore = create<AppState & Actions>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       ...initialState,
 
       reset: () => set({ ...initialState }),
@@ -371,9 +370,6 @@ export const useStore = create<AppState & Actions>()(
           );
           if (Array.isArray(persistedState.skus)) {
             persistedState.skus = persistedState.skus.map((s: any) => ({
-              orderMultiple: 6,
-              orderUnitLabel: "case",
-              ...skuDefaults[s.id],
               ...s,
               orderMultiple: s.orderMultiple ?? skuDefaults[s.id]?.orderMultiple ?? 6,
               orderUnitLabel: s.orderUnitLabel ?? skuDefaults[s.id]?.orderUnitLabel ?? "case",
@@ -381,9 +377,6 @@ export const useStore = create<AppState & Actions>()(
           }
           if (Array.isArray(persistedState.components)) {
             persistedState.components = persistedState.components.map((c: any) => ({
-              orderMultiple: 1,
-              orderUnitLabel: "",
-              ...compDefaults[c.id],
               ...c,
               orderMultiple: c.orderMultiple ?? compDefaults[c.id]?.orderMultiple ?? 1,
               orderUnitLabel: c.orderUnitLabel ?? compDefaults[c.id]?.orderUnitLabel ?? "",
