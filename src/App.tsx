@@ -10,6 +10,9 @@ import { ProfitView } from "./views/ProfitView";
 import { MarketingView } from "./views/MarketingView";
 import { DataView } from "./views/DataView";
 import { SettingsView } from "./views/SettingsView";
+import { LtvView } from "./views/LtvView";
+import { FinancialsView } from "./views/FinancialsView";
+import { WeeklyBurnView } from "./views/WeeklyBurnView";
 
 function App() {
   const [page, setPage] = useState<Page>("order-now");
@@ -24,6 +27,9 @@ function App() {
       {page === "cash" && <CashView />}
       {page === "profit" && <ProfitView />}
       {page === "marketing" && <MarketingView />}
+      {page === "financials" && <FinancialsView />}
+      {page === "weekly-burn" && <WeeklyBurnView />}
+      {page === "ltv" && <LtvView />}
       {page === "data" && <DataView />}
       {page === "settings" && <SettingsView />}
     </Layout>

@@ -12,6 +12,9 @@ export type Page =
   | "cash"
   | "profit"
   | "marketing"
+  | "financials"
+  | "weekly-burn"
+  | "ltv"
   | "data"
   | "settings";
 
@@ -30,6 +33,9 @@ const NAV: NavItem[] = [
   { id: "cash", label: "Cash & Burn",      icon: "💰" },
   { id: "profit", label: "Profitability",  icon: "🧾" },
   { id: "marketing", label: "Marketing",   icon: "📣" },
+  { id: "financials", label: "Financials", icon: "📊" },
+  { id: "weekly-burn", label: "Weekly Burn", icon: "🔥" },
+  { id: "ltv", label: "LTV Scenarios",     icon: "🧮" },
   { id: "data", label: "Raw Data",         icon: "🗂" },
   { id: "settings", label: "Settings",     icon: "⚙️" },
 ];
