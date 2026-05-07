@@ -3,7 +3,7 @@ declare const Buffer: { from(input: string, encoding: "utf8"): { toString(enc: "
 
 import { createHmac } from "node:crypto";
 
-import { getShopifyApiKey, getShopifyApiSecret } from "../../../lib/business/shopifyEnv";
+import { getShopifyApiKey, getShopifyApiSecret } from "../lib/business/shopifyEnv";
 
 function cryptoHmacSha256Hex(secret: string, data: string): string {
   return createHmac("sha256", secret).update(data, "utf8").digest("hex");
@@ -105,7 +105,7 @@ export default async function handler(req: any, res: any) {
             `SHOPIFY_SHOP_DOMAIN=${shop}`,
             `SHOPIFY_ADMIN_ACCESS_TOKEN=${access}`,
             "",
-            "# Then verify: GET /api/shopify/shop and GET /api/shopify/pull",
+            "# Then verify: GET /api/shopify/store and GET /api/shopify/pull",
           ].join("\n")
         : undefined;
 
@@ -129,12 +129,13 @@ export default async function handler(req: any, res: any) {
               }
             : {}),
           nextSteps: [
+            "Set SHOPIFY_REDIRECT_URI in Vercel to: https://YOUR_HOST/api/shopify-oauth-callback",
             "Add to Vercel → Environment Variables and/or local .env.local (for Cursor MCP):",
             `SHOPIFY_SHOP_DOMAIN=${shop}`,
-            "SHOPIFY_ADMIN_ACCESS_TOKEN=<access_token from OAuth response — use debug echo once to capture>",
+            "SHOPIFY_ADMIN_ACCESS_TOKEN=<access_token from OAuth — use debug echo once to capture>",
             "Aliases (optional): SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET match SHOPIFY_API_KEY / SHOPIFY_API_SECRET.",
-            "Verify: GET /api/shopify/shop then GET /api/shopify/pull",
-            "To echo the token once: set SHOPIFY_DEBUG_ECHO_TOKENS=true, open /api/shopify/auth/start?shop=...&debug=1, complete OAuth, add ?debug=1 on the callback if needed; then turn the flag off.",
+            "Verify: GET /api/shopify/store then GET /api/shopify/pull",
+            "To echo the token once: set SHOPIFY_DEBUG_ECHO_TOKENS=true, open /api/shopify-oauth-start?shop=...&debug=1, complete OAuth; then turn the flag off.",
           ],
         },
         null,

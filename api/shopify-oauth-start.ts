@@ -5,7 +5,7 @@ import {
   getShopifyApiKey,
   getShopifyRedirectUri,
   normalizeShopifyShop,
-} from "../../../lib/business/shopifyEnv";
+} from "../lib/business/shopifyEnv";
 
 function base64(s: string) {
   return Buffer.from(s, "utf8").toString("base64");
