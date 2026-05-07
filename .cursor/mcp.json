@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "pickle-business": {
+      "command": "npm",
+      "args": ["run", "mcp:business"]
+    }
+  }
+}
