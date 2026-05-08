@@ -28,8 +28,8 @@ export default async function handler(req, res) {
       .slice()
       .sort((a, b) => String(b.pathname || "").localeCompare(String(a.pathname || "")))[0];
 
-    const meta = await head(latest.url, { token });
-    const body = await get(meta.url, { token });
+    const meta = await head(latest.pathname, { token });
+    const body = await get(latest.pathname, { token });
     const text = await body.text();
     let json;
     try {
