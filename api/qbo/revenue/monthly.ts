@@ -1,4 +1,4 @@
-import { getMonthlyRevenueSeries } from "../../lib/business/qboProfitLoss";
+import { getMonthlyRevenueSeries } from "../../../lib/business/qboProfitLoss";
 
 export default async function handler(req: any, res: any) {
   try {

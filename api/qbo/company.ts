@@ -8,7 +8,8 @@ export default async function handler(req: any, res: any) {
     }
 
     const realmId = getQboRealmId();
-    const url = `https://${qboHost()}/v3/company/${realmId}/companyinfo/${realmId}`;
+    const rid = encodeURIComponent(realmId);
+    const url = `https://${qboHost()}/v3/company/${rid}/companyinfo/${rid}?minorversion=75`;
     const r = await qboFetch(url);
 
     const text = await r.text();

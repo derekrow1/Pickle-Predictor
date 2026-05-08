@@ -56,8 +56,9 @@ export async function qboFetch(url: string | URL, init?: RequestInit): Promise<R
 
 export async function qboQuery(sql: string): Promise<unknown> {
   const realmId = getQboRealmId();
-  const url = new URL(`https://${qboHost()}/v3/company/${realmId}/query`);
+  const url = new URL(`https://${qboHost()}/v3/company/${encodeURIComponent(realmId)}/query`);
   url.searchParams.set("query", sql);
+  url.searchParams.set("minorversion", "75");
   const r = await qboFetch(url.toString());
   const text = await r.text();
   if (!r.ok) {

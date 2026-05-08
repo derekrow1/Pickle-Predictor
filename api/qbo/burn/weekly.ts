@@ -1,11 +1,11 @@
-import { getQboRealmId } from "../../lib/business/qbo";
+import { getQboRealmId } from "../../../lib/business/qbo";
 import {
   extractColumnLabels,
   fetchProfitAndLossReport,
   findReportRowByLabel,
   fmtDate,
   parseMoney,
-} from "../../lib/business/qboProfitLoss";
+} from "../../../lib/business/qboProfitLoss";
 
 function startOfWeekUtc(d: Date) {
   const day = d.getUTCDay();
@@ -41,12 +41,17 @@ export default async function handler(req: any, res: any) {
 
     const realmId = getQboRealmId();
 
-    const weeks = Math.max(4, Math.min(26, Number(req.query?.weeks ?? 12)));
-    const avgWeeks = Math.max(1, Math.min(26, Number(req.query?.avgWeeks ?? 8)));
+    const weeksRaw = Number(req.query?.weeks ?? 12);
+    const avgWeeksRaw = Number(req.query?.avgWeeks ?? 8);
+    const weeks = Math.max(4, Math.min(26, Number.isFinite(weeksRaw) ? weeksRaw : 12));
+    const avgWeeks = Math.max(1, Math.min(26, Number.isFinite(avgWeeksRaw) ? avgWeeksRaw : 8));
     const now = new Date();
     const thisWeekStart = startOfWeekUtc(now);
+    // Full Monday–Sunday weeks only: end on the Sunday before the in-progress week (QBO is picky
+    // about summarize_column_by=Week when the range does not align to week boundaries).
+    const endInclusive = addDays(thisWeekStart, -1);
     const start = addDays(thisWeekStart, -7 * weeks);
-    const end = thisWeekStart;
+    const end = endInclusive;
 
     const report = await fetchProfitAndLossReport({
       start_date: fmtDate(start),

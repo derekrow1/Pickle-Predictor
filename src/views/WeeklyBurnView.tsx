@@ -83,7 +83,17 @@ export function WeeklyBurnView() {
       setStatus("Loading weekly burn from QuickBooks…");
       try {
         const r = await fetch(`/api/qbo/burn/weekly?weeks=${historyWeeks}&avgWeeks=${avgWeeks}`);
-        const j = (await r.json()) as WeeklyBurnResponse;
+        const text = await r.text();
+        let j: WeeklyBurnResponse;
+        try {
+          j = JSON.parse(text) as WeeklyBurnResponse;
+        } catch {
+          throw new Error(
+            r.ok
+              ? "Weekly burn API returned non-JSON (check deployment /api route)."
+              : `Weekly burn API error (${r.status}): ${text.slice(0, 200)}`,
+          );
+        }
         if (!r.ok) throw new Error((j as { error?: string }).error || "Failed to load weekly burn");
         if (!cancelled) {
           setData(j);
@@ -134,7 +144,7 @@ export function WeeklyBurnView() {
     <>
       <PageHeader
         title="Weekly Burn"
-        subtitle="QuickBooks accrual P&L · Monday–Sunday weeks · current partial week omitted"
+        subtitle="QuickBooks accrual P&L · Monday–Sunday weeks · range ends on the last complete Sunday (UTC)"
         right={
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <label className="flex items-center gap-1.5 text-pickle-700">
@@ -199,7 +209,9 @@ export function WeeklyBurnView() {
                 <span className="text-pickle-500"> → </span>
                 <span className="font-medium">{data.end_date}</span>
               </div>
-              <div className="text-xs text-pickle-600 mt-1">End date is start of current week (UTC), so the in-progress week is excluded.</div>
+              <div className="text-xs text-pickle-600 mt-1">
+                End date is the last Sunday of the last full week (UTC), so the in-progress week is excluded.
+              </div>
             </div>
           </div>
 

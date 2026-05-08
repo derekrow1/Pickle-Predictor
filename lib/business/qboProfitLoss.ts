@@ -22,6 +22,18 @@ export function parseMoney(s: unknown): number {
 
 type Report = Record<string, unknown>;
 
+type QboFaultError = { Message?: string; Detail?: string; code?: string };
+
+function throwIfQboFault(body: unknown, httpStatus: number): void {
+  const fault = (body as { Fault?: { Error?: QboFaultError[]; type?: string } })?.Fault;
+  const first = fault?.Error?.[0];
+  if (!first) return;
+  const msg = [first.Detail, first.Message, fault.type].filter(Boolean).join(" — ");
+  throw new Error(
+    msg || `QuickBooks Fault (HTTP ${httpStatus})`,
+  );
+}
+
 export async function fetchProfitAndLossReport(params: {
   start_date: string;
   end_date: string;
@@ -29,18 +41,28 @@ export async function fetchProfitAndLossReport(params: {
   accounting_method?: "Accrual" | "Cash";
 }): Promise<Report> {
   const realmId = getQboRealmId();
-  const url = new URL(`https://${qboHost()}/v3/company/${realmId}/reports/ProfitAndLoss`);
+  const pathRealm = encodeURIComponent(realmId);
+  const url = new URL(`https://${qboHost()}/v3/company/${pathRealm}/reports/ProfitAndLoss`);
   url.searchParams.set("start_date", params.start_date);
   url.searchParams.set("end_date", params.end_date);
   url.searchParams.set("summarize_column_by", params.summarize_column_by);
   url.searchParams.set("accounting_method", params.accounting_method ?? "Accrual");
+  url.searchParams.set("minorversion", "75");
 
   const r = await qboFetch(url.toString());
   const text = await r.text();
-  if (!r.ok) {
-    throw new Error(`QBO ProfitAndLoss failed (${r.status}): ${text}`);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text) as unknown;
+  } catch {
+    if (!r.ok) throw new Error(`QBO ProfitAndLoss failed (${r.status}): ${text.slice(0, 500)}`);
+    throw new Error("QBO ProfitAndLoss: response was not JSON");
   }
-  return JSON.parse(text) as Report;
+  throwIfQboFault(parsed, r.status);
+  if (!r.ok) {
+    throw new Error(`QBO ProfitAndLoss failed (${r.status}): ${text.slice(0, 800)}`);
+  }
+  return parsed as Report;
 }
 
 export function findReportRowByLabel(report: Report, label: string): Report | null {
