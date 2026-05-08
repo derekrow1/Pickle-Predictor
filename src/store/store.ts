@@ -38,6 +38,7 @@ const initialState: AppState = {
   initialFills: [],
   rawShopifyRows: [],
   cleanOrders: [],
+  shopifyAllCleanOrders: [],
   adSpend: [],
   events: [],
   bankBalances: [],
@@ -92,6 +93,8 @@ interface Actions {
   setShopifyData(raw: any[], clean: CleanOrderLine[]): void;
   appendShopifyData(raw: any[], clean: CleanOrderLine[]): void;
   clearShopifyData(): void;
+  setShopifyWeeksBack(weeksBack: number): void;
+  syncShopifyFromApi(clean: CleanOrderLine[], mode: "backfill" | "refresh"): void;
 
   // Marketing
   upsertAdSpend(e: AdSpendEntry): void;
@@ -247,20 +250,66 @@ export const useStore = create<AppState & Actions>()(
       setShopifyData: (raw, clean) =>
         set({
           rawShopifyRows: raw,
-          cleanOrders: clean,
+          shopifyAllCleanOrders: clean,
+          cleanOrders: applyShopifyWeeksFilter(clean, clean, DEFAULT_SETTINGS.shopifyWeeksBack),
           lastShopifyImportAt: new Date().toISOString(),
+          lastShopifySyncAt: new Date().toISOString(),
+          lastShopifySyncSource: "upload",
+          ...computeShopifyCacheRange(clean),
         }),
       appendShopifyData: (raw, clean) =>
         set((state) => {
-          const seen = new Set(state.cleanOrders.map((o) => o.orderName));
+          const seen = new Set((state.shopifyAllCleanOrders || []).map((o) => o.orderName));
           const newClean = clean.filter((o) => !seen.has(o.orderName));
+          const all = [...(state.shopifyAllCleanOrders || []), ...newClean];
           return {
             rawShopifyRows: [...state.rawShopifyRows, ...raw],
-            cleanOrders: [...state.cleanOrders, ...newClean],
+            shopifyAllCleanOrders: all,
+            cleanOrders: applyShopifyWeeksFilter(all, all, state.settings.shopifyWeeksBack),
             lastShopifyImportAt: new Date().toISOString(),
+            lastShopifySyncAt: new Date().toISOString(),
+            lastShopifySyncSource: "upload",
+            ...computeShopifyCacheRange(all),
           };
         }),
-      clearShopifyData: () => set({ rawShopifyRows: [], cleanOrders: [] }),
+      clearShopifyData: () =>
+        set({
+          rawShopifyRows: [],
+          shopifyAllCleanOrders: [],
+          cleanOrders: [],
+          lastShopifyImportAt: undefined,
+          lastShopifySyncAt: undefined,
+          lastShopifySyncSource: undefined,
+          shopifyCacheOldestDate: undefined,
+          shopifyCacheNewestDate: undefined,
+        }),
+
+      setShopifyWeeksBack: (weeksBack) =>
+        set((state) => {
+          const wb = Number.isFinite(weeksBack) ? Math.max(0, Math.floor(weeksBack)) : 12;
+          const all = state.shopifyAllCleanOrders || [];
+          return {
+            settings: { ...state.settings, shopifyWeeksBack: wb },
+            cleanOrders: applyShopifyWeeksFilter(all, state.cleanOrders, wb),
+          };
+        }),
+
+      syncShopifyFromApi: (incoming, mode) =>
+        set((state) => {
+          const now = new Date().toISOString();
+          const existing = state.shopifyAllCleanOrders || [];
+          const all =
+            mode === "backfill"
+              ? incoming
+              : mergeCleanOrders(existing, incoming);
+          return {
+            shopifyAllCleanOrders: all,
+            cleanOrders: applyShopifyWeeksFilter(all, state.cleanOrders, state.settings.shopifyWeeksBack),
+            lastShopifySyncAt: now,
+            lastShopifySyncSource: "api",
+            ...computeShopifyCacheRange(all),
+          };
+        }),
 
       upsertAdSpend: (e) =>
         set((state) => {
@@ -358,7 +407,7 @@ export const useStore = create<AppState & Actions>()(
     {
       name: "pickle-predictor-v1",
       storage: createJSONStorage(() => localStorage),
-      version: 6,
+      version: 7,
       migrate: (persistedState: any, fromVersion: number) => {
         // v1 -> v2: backfill orderMultiple / orderUnitLabel on SKUs and components.
         if (fromVersion < 2 && persistedState) {
@@ -388,6 +437,19 @@ export const useStore = create<AppState & Actions>()(
           if (!Array.isArray(persistedState.retailers)) persistedState.retailers = [];
           if (!Array.isArray(persistedState.retailVelocities)) persistedState.retailVelocities = [];
           if (!Array.isArray(persistedState.initialFills)) persistedState.initialFills = [];
+        }
+        // v6 -> v7: add shopify cached dataset fields + default shopifyWeeksBack
+        if (fromVersion < 7 && persistedState) {
+          if (!Array.isArray(persistedState.shopifyAllCleanOrders)) {
+            // Backfill from existing cleanOrders if present.
+            persistedState.shopifyAllCleanOrders = Array.isArray(persistedState.cleanOrders)
+              ? persistedState.cleanOrders
+              : [];
+          }
+          if (!persistedState.settings) persistedState.settings = { ...DEFAULT_SETTINGS };
+          if (typeof persistedState.settings.shopifyWeeksBack !== "number") {
+            persistedState.settings.shopifyWeeksBack = 12;
+          }
         }
         // v4 -> v5: add receipts array and stamp existing POs with status="open".
         if (fromVersion < 5 && persistedState) {
@@ -438,6 +500,39 @@ export const useStore = create<AppState & Actions>()(
     },
   ),
 );
+
+function computeShopifyCacheRange(clean: CleanOrderLine[]) {
+  if (!clean || clean.length === 0) return {};
+  const dates = clean.map((o) => o.date).filter(Boolean).sort();
+  return {
+    shopifyCacheOldestDate: dates[0],
+    shopifyCacheNewestDate: dates[dates.length - 1],
+  };
+}
+
+function applyShopifyWeeksFilter(
+  all: CleanOrderLine[],
+  fallbackVisible: CleanOrderLine[],
+  weeksBack: number,
+): CleanOrderLine[] {
+  const src = Array.isArray(all) && all.length ? all : fallbackVisible || [];
+  if (!src.length) return [];
+  if (!weeksBack || weeksBack <= 0) return src;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - weeksBack * 7);
+  const cutoffIso = cutoff.toISOString().slice(0, 10);
+  return src.filter((o) => (o.date || "").slice(0, 10) >= cutoffIso);
+}
+
+function mergeCleanOrders(existing: CleanOrderLine[], incoming: CleanOrderLine[]): CleanOrderLine[] {
+  const byKey = new Map<string, CleanOrderLine>();
+  const keyOf = (o: CleanOrderLine) => (typeof o.orderId === "number" ? `id:${o.orderId}` : `name:${o.orderName}`);
+  for (const o of existing) byKey.set(keyOf(o), o);
+  for (const o of incoming) byKey.set(keyOf(o), o);
+  const merged = [...byKey.values()];
+  merged.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  return merged;
+}
 
 // Helpers
 export function exportStateAsJSON(state: AppState): string {

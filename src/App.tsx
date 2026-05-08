@@ -13,9 +13,17 @@ import { SettingsView } from "./views/SettingsView";
 import { LtvView } from "./views/LtvView";
 import { FinancialsView } from "./views/FinancialsView";
 import { WeeklyBurnView } from "./views/WeeklyBurnView";
+import { useEffect } from "react";
+import { syncShopifyOnOpen } from "./lib/shopifySync";
 
 function App() {
   const [page, setPage] = useState<Page>("order-now");
+
+  useEffect(() => {
+    // Fire-and-forget: sync Shopify cache if stale/missing.
+    // Any errors are surfaced in the Data tab UI (we keep cached data on failures).
+    void syncShopifyOnOpen();
+  }, []);
 
   return (
     <Layout page={page} setPage={setPage}>

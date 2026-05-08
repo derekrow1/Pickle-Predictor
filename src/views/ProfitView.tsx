@@ -74,7 +74,7 @@ export function ProfitView() {
     return (
       <>
         <PageHeader title="Profitability" subtitle="Weekly P&L from Shopify" />
-        <EmptyState title="Upload Shopify orders first" />
+        <EmptyState title="Sync Shopify orders first (Data tab)" />
       </>
     );
   }

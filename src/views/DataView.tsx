@@ -12,6 +12,7 @@ import { cleanShopifyRows } from "../lib/cleanShopify";
 import { fmtDate, fmtNum } from "../lib/util";
 import type { InventorySnapshotRow } from "../types";
 import { PageHeader } from "../components/Layout";
+import { syncShopifyOnOpen } from "../lib/shopifySync";
 
 interface StagedFile {
   filename: string;
@@ -29,10 +30,12 @@ export function DataView() {
   const setShopify = useStore((s) => s.setShopifyData);
   const appendShopify = useStore((s) => s.appendShopifyData);
   const clearShopify = useStore((s) => s.clearShopifyData);
+  const setWeeksBack = useStore((s) => s.setShopifyWeeksBack);
   const removeInv = useStore((s) => s.removeInventorySnapshot);
   const upsertSlice = useStore((s) => s.upsertInventorySlice);
 
   const [shopifyMsg, setShopifyMsg] = useState<string>("");
+  const [shopifySyncMsg, setShopifySyncMsg] = useState<string>("");
   const [invMsg, setInvMsg] = useState<string>("");
   const [unmatched, setUnmatched] = useState<{ sku: string; count: number }[]>([]);
   const [staged, setStaged] = useState<StagedFile[]>([]);
@@ -57,8 +60,9 @@ export function DataView() {
             : ""
         }`,
       );
-    } catch (err: any) {
-      setShopifyMsg(`Error: ${err.message || err}`);
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      setShopifyMsg(`Error: ${e?.message || String(err)}`);
     }
     e.target.value = "";
   };
@@ -110,8 +114,9 @@ export function DataView() {
             }
           }
         }
-      } catch (err: any) {
-        setInvMsg(`Error parsing ${file.name}: ${err.message || err}`);
+      } catch (err: unknown) {
+        const e = err as { message?: string };
+        setInvMsg(`Error parsing ${file.name}: ${e?.message || String(err)}`);
         return;
       }
     }
@@ -145,6 +150,7 @@ export function DataView() {
   };
 
   const whIds = state.warehouses.map((w) => w.id);
+  const weeksBack = state.settings.shopifyWeeksBack ?? 12;
 
   return (
     <>
@@ -304,8 +310,73 @@ export function DataView() {
         <div className="card p-4">
           <div className="text-sm font-semibold mb-2">🛒 Shopify orders export</div>
           <div className="text-xs text-pickle-700 mb-2">
-            Upload the raw Shopify order export. We auto-expand multi-pack SKUs into per-SKU jars.
+            Auto-sync pulls up to ~1 year of Shopify orders and caches locally. Default view is last 12 weeks.
+            Upload is still available as a fallback. We auto-expand multi-pack SKUs into per-SKU jars.
           </div>
+
+          <div className="border border-pickle-100 rounded-md p-3 mb-3">
+            <div className="flex flex-wrap gap-3 items-center">
+              <label className="text-xs flex items-center gap-2">
+                Weeks shown:
+                <select
+                  className="input"
+                  value={weeksBack === 0 ? "ALL" : String(weeksBack)}
+                  onChange={(e) => {
+                    const v = e.target.value === "ALL" ? 0 : parseInt(e.target.value, 10) || 12;
+                    setWeeksBack(v);
+                  }}
+                >
+                  <option value="4">4</option>
+                  <option value="8">8</option>
+                  <option value="12">12</option>
+                  <option value="16">16</option>
+                  <option value="24">24</option>
+                  <option value="52">52</option>
+                  <option value="ALL">All cached</option>
+                </select>
+              </label>
+
+              <button
+                className="btn-secondary"
+                onClick={async () => {
+                  setShopifySyncMsg("Refreshing from Shopify…");
+                  try {
+                    const r = await syncShopifyOnOpen();
+                    if (r.mode === "none") setShopifySyncMsg("Already fresh (cached).");
+                    else setShopifySyncMsg(`Synced (${r.mode}) · ${r.count} orders processed.`);
+                  } catch (e: unknown) {
+                    const err = e as { message?: string };
+                    setShopifySyncMsg(`Refresh failed: ${err?.message || String(e)}`);
+                  }
+                }}
+              >
+                Refresh from Shopify
+              </button>
+
+              <div className="text-xs text-pickle-700">
+                Cached range:{" "}
+                <strong>
+                  {state.shopifyCacheOldestDate ? fmtDate(state.shopifyCacheOldestDate) : "—"}
+                </strong>{" "}
+                →{" "}
+                <strong>
+                  {state.shopifyCacheNewestDate ? fmtDate(state.shopifyCacheNewestDate) : "—"}
+                </strong>
+              </div>
+
+              <div className="text-xs text-pickle-700">
+                Last sync:{" "}
+                <strong>
+                  {state.lastShopifySyncAt ? new Date(state.lastShopifySyncAt).toLocaleString() : "—"}
+                </strong>{" "}
+                <span className="text-[10px]">
+                  ({state.lastShopifySyncSource || "—"})
+                </span>
+              </div>
+            </div>
+            {shopifySyncMsg && <div className="text-sm mt-2">{shopifySyncMsg}</div>}
+          </div>
+
           <div className="flex gap-2 items-center">
             <label className="text-xs">
               Replace all:

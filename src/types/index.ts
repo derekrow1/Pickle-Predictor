@@ -113,6 +113,9 @@ export interface InitialFill {
 }
 
 export interface CleanOrderLine {
+  // Optional stable id when sourced from Shopify Admin API.
+  // Upload CSV exports won't have this.
+  orderId?: number;
   orderName: string;
   date: string; // ISO
   shippingState?: string;
@@ -183,6 +186,10 @@ export interface Settings {
   processingCostPctOfOrder: number; // 0.029
   fixedFeesPerOrder: number; // 0.30
   promoCostPctOfOrder: number; // ~0.05
+
+  // Shopify
+  // Number of weeks shown in the UI by default. 0 means "All cached".
+  shopifyWeeksBack: number;
 }
 
 export interface AppState {
@@ -199,7 +206,10 @@ export interface AppState {
   initialFills: InitialFill[];
   // Order data
   rawShopifyRows: any[]; // last raw upload (audit)
+  // Visible analysis window (derived from shopifyAllCleanOrders + settings.shopifyWeeksBack)
   cleanOrders: CleanOrderLine[]; // expanded by SKU
+  // Cached dataset (up to ~1y) used to derive `cleanOrders`
+  shopifyAllCleanOrders?: CleanOrderLine[];
   // Marketing
   adSpend: AdSpendEntry[];
   events: MarketingEvent[];
@@ -209,5 +219,9 @@ export interface AppState {
   settings: Settings;
   // Meta
   lastShopifyImportAt?: string;
+  lastShopifySyncAt?: string;
+  lastShopifySyncSource?: "api" | "upload";
+  shopifyCacheOldestDate?: string;
+  shopifyCacheNewestDate?: string;
   lastInventoryImportAt?: string;
 }

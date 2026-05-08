@@ -25,7 +25,7 @@ export function ForecastView() {
     return (
       <>
         <PageHeader title="Demand Forecast" subtitle="Next 12 weeks" />
-        <EmptyState title="Upload Shopify orders first" />
+        <EmptyState title="Sync Shopify orders first (Data tab)" />
       </>
     );
   }
