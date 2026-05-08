@@ -16,6 +16,7 @@ import type { InventorySnapshotRow } from "../types";
 import { PageHeader } from "../components/Layout";
 import { syncShopifyOnOpen } from "../lib/shopifySync";
 import { adjustedSnapshotForCurrent, diffSnapshots } from "../lib/inventoryAdjust";
+import { schedulePushSharedState } from "../lib/sharedStateSync";
 
 interface StagedFile {
   filename: string;
@@ -189,6 +190,7 @@ export function DataView() {
       }),
     );
     setInvMsg(`Applied ${count} upload(s) to inventory.`);
+    schedulePushSharedState();
   };
 
   const clearStaged = () => {

@@ -15,6 +15,7 @@ import { FinancialsView } from "./views/FinancialsView";
 import { WeeklyBurnView } from "./views/WeeklyBurnView";
 import { useEffect } from "react";
 import { syncShopifyOnOpen } from "./lib/shopifySync";
+import { pullSharedStateOnOpen } from "./lib/sharedStateSync";
 
 function App() {
   const [page, setPage] = useState<Page>("order-now");
@@ -23,6 +24,11 @@ function App() {
     // Fire-and-forget: sync Shopify cache if stale/missing.
     // Any errors are surfaced in the Data tab UI (we keep cached data on failures).
     void syncShopifyOnOpen();
+  }, []);
+
+  useEffect(() => {
+    // Pull shared dataset on open so other devices see the same uploads.
+    void pullSharedStateOnOpen();
   }, []);
 
   return (

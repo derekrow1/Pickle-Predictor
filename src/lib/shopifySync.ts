@@ -1,6 +1,7 @@
 import { fetchShopifyOrdersBackfill, fetchShopifyOrdersRefresh } from "./shopifyClient";
 import { cleanShopifyAdminOrders } from "./cleanShopifyAdmin";
 import { useStore } from "../store/store";
+import { schedulePushSharedState } from "./sharedStateSync";
 
 const STALE_HOURS = 6;
 const BACKFILL_WEEKS = 52;
@@ -29,6 +30,7 @@ export async function syncShopifyOnOpen(): Promise<{ mode: "none" | "backfill" |
 
   const cleaned = cleanShopifyAdminOrders(orders, state.warehouseStateMap);
   useStore.getState().syncShopifyFromApi(cleaned.clean, mode);
+  schedulePushSharedState();
   return { mode, count: cleaned.clean.length };
 }
 

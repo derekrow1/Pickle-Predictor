@@ -190,6 +190,10 @@ export interface Settings {
   // Shopify
   // Number of weeks shown in the UI by default. 0 means "All cached".
   shopifyWeeksBack: number;
+
+  // Shared dataset sync (optional)
+  // Only users who enter the admin token can publish updates; everyone can read.
+  sharedStateAdminToken?: string;
 }
 
 export interface AppState {
@@ -224,4 +228,7 @@ export interface AppState {
   shopifyCacheOldestDate?: string;
   shopifyCacheNewestDate?: string;
   lastInventoryImportAt?: string;
+
+  // Shared state meta
+  sharedStateLastPulledAt?: string;
 }

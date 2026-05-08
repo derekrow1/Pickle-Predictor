@@ -555,6 +555,11 @@ export function exportStateAsJSON(state: AppState): string {
     settings: state.settings,
     lastShopifyImportAt: state.lastShopifyImportAt,
     lastInventoryImportAt: state.lastInventoryImportAt,
+    lastShopifySyncAt: state.lastShopifySyncAt,
+    lastShopifySyncSource: state.lastShopifySyncSource,
+    shopifyCacheOldestDate: state.shopifyCacheOldestDate,
+    shopifyCacheNewestDate: state.shopifyCacheNewestDate,
+    sharedStateLastPulledAt: state.sharedStateLastPulledAt,
   };
   return JSON.stringify(clean, null, 2);
 }

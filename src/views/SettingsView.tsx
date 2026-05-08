@@ -3,6 +3,7 @@ import { useStore, exportStateAsJSON } from "../store/store";
 import { PageHeader } from "../components/Layout";
 import { buildDefaultStateMap } from "../lib/constants";
 import { uid, fmtNum, fmtDate } from "../lib/util";
+import { pullSharedStateOnOpen, pushSharedStateNow } from "../lib/sharedStateSync";
 import type {
   ComponentItem,
   OpenPO,
@@ -36,6 +37,7 @@ export function SettingsView() {
   const resetAssumptions = useStore((s) => s.resetAssumptions);
   const importJSON = useStore((s) => s.importJSON);
   const [importErr, setImportErr] = useState("");
+  const [sharedMsg, setSharedMsg] = useState("");
 
   const onExport = () => {
     const json = exportStateAsJSON(state);
@@ -96,6 +98,58 @@ export function SettingsView() {
       {importErr && <div className="text-red-600 text-sm mb-3">{importErr}</div>}
 
       <div className="grid grid-cols-2 gap-4">
+        <div className="card p-4 col-span-2">
+          <h2 className="font-semibold text-pickle-900 mb-3">Shared data (team sync)</h2>
+          <div className="text-xs text-pickle-700 mb-2">
+            Everyone can <strong>read</strong> the shared dataset. Only users who know the admin token can
+            <strong> publish</strong> updates (uploads / syncs) to the shared dataset.
+          </div>
+          <div className="flex flex-wrap gap-3 items-end">
+            <label className="text-xs">
+              Admin token (for publishing)
+              <input
+                className="input w-80"
+                value={s.sharedStateAdminToken || ""}
+                onChange={(e) => update({ sharedStateAdminToken: e.target.value })}
+                placeholder="paste SHARED_STATE_ADMIN_TOKEN here"
+              />
+            </label>
+            <button
+              className="btn-secondary"
+              onClick={async () => {
+                setSharedMsg("Pulling shared data…");
+                try {
+                  const r = await pullSharedStateOnOpen();
+                  setSharedMsg(r === "pulled" ? "Pulled latest shared dataset." : "No newer shared dataset found.");
+                } catch (e: any) {
+                  setSharedMsg(`Pull failed: ${e?.message || String(e)}`);
+                }
+              }}
+            >
+              Pull shared
+            </button>
+            <button
+              className="btn-primary"
+              onClick={async () => {
+                setSharedMsg("Publishing…");
+                try {
+                  await pushSharedStateNow();
+                  setSharedMsg("Published current dataset to shared.");
+                } catch (e: any) {
+                  setSharedMsg(`Publish failed: ${e?.message || String(e)}`);
+                }
+              }}
+            >
+              Publish now
+            </button>
+            <div className="text-xs text-pickle-700">
+              Last pulled:{" "}
+              <strong>{state.sharedStateLastPulledAt ? new Date(state.sharedStateLastPulledAt).toLocaleString() : "—"}</strong>
+            </div>
+          </div>
+          {sharedMsg && <div className="text-sm mt-2">{sharedMsg}</div>}
+        </div>
+
         <div className="card p-4">
           <h2 className="font-semibold text-pickle-900 mb-3">Lead Time & Shelf Life</h2>
           <Field label="Manufacturer lead (weeks)" value={s.manufacturerLeadWeeks} step={1} onChange={(v) => update({ manufacturerLeadWeeks: v })}/>

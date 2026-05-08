@@ -81,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fixedFeesPerOrder: 0.30,
   promoCostPctOfOrder: 0.05,
   shopifyWeeksBack: 12,
+  sharedStateAdminToken: "",
 };
 
 export const PLATFORM_OPTIONS = ["Meta", "TikTok", "Google", "YouTube", "Influencer", "Other"];
