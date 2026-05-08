@@ -92,7 +92,8 @@ function onOrderFor(pos: OpenPO[], itemId: string, warehouseId: string): number 
 
 export function computeOrderRecs(state: AppState): OrderEngineResult {
   const settings = state.settings;
-  const history = aggregateHistoricalByWeek(state.cleanOrders);
+  const tz = settings.businessTimezone;
+  const history = aggregateHistoricalByWeek(state.cleanOrders, tz);
   const warehouseMix = computeWarehouseMix(history, settings.forecastLookbackWeeks);
   const baseline = computeBaselineByLookback(history, settings.forecastLookbackWeeks);
   const forecast = forecastDemand({
@@ -120,6 +121,7 @@ export function computeOrderRecs(state: AppState): OrderEngineResult {
     settings.forecastLookbackWeeks,
     state.warehouses.map((w) => w.id),
     state.skus,
+    tz,
   );
 
   const snapRaw = findLatestSnapshot(state.inventorySnapshots);

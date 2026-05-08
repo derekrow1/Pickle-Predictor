@@ -22,6 +22,7 @@ type WeeklyBurnResponse = {
   ok?: boolean;
   error?: string;
   realmId?: string;
+  businessTimeZone?: string;
   start_date?: string;
   end_date?: string;
   weeks?: number;
@@ -144,7 +145,7 @@ export function WeeklyBurnView() {
     <>
       <PageHeader
         title="Weekly Burn"
-        subtitle="QuickBooks accrual P&L · Sunday–Saturday weeks (QBO) · range ends on the last complete Saturday (UTC)"
+        subtitle="QuickBooks accrual P&L · Sunday–Saturday weeks in your business timezone (set in Settings; server uses BUSINESS_TIMEZONE on Vercel)"
         right={
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <label className="flex items-center gap-1.5 text-pickle-700">
@@ -210,7 +211,8 @@ export function WeeklyBurnView() {
                 <span className="font-medium">{data.end_date}</span>
               </div>
               <div className="text-xs text-pickle-600 mt-1">
-                End date is the last Saturday of the last full Sun–Sat week (UTC), so the in-progress week is excluded.
+                Range uses {data.businessTimeZone ?? "BUSINESS_TIMEZONE"} (same idea as Settings → business timezone).
+                End date is the last Saturday of the last full week; the in-progress week is excluded.
               </div>
             </div>
           </div>

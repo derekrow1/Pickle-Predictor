@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useStore } from "../store/store";
-import { fmtMoney, fmtNum, fmtDateShort, ISO, parseAnyDate, weekStart } from "../lib/util";
+import { fmtMoney, fmtNum, fmtDateShort, parseAnyDate } from "../lib/util";
+import { weekStartIsoKey } from "../../lib/business/calendar";
 import { PageHeader, EmptyState } from "../components/Layout";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 
@@ -24,11 +25,12 @@ export function ProfitView() {
 
   const weekly = useMemo(() => {
     const map = new Map<string, WeekRow>();
+    const tz = state.settings.businessTimezone;
     const settings = state.settings;
     for (const o of state.cleanOrders) {
       const d = parseAnyDate(o.date);
       if (!d) continue;
-      const ws = ISO(weekStart(d));
+      const ws = weekStartIsoKey(d, tz);
       if (!map.has(ws)) {
         map.set(ws, {
           weekStart: ws,

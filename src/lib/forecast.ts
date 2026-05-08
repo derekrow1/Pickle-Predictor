@@ -1,10 +1,15 @@
 import { addWeeks } from "date-fns";
 import type { CleanOrderLine, MarketingEvent, AdSpendEntry, Settings, Sku } from "../types";
-import { ISO, eachWeekStart, parseAnyDate, weekStart } from "./util";
+import { eachWeekStart, parseAnyDate } from "./util";
 import { componentsForOrder } from "./packoutRules";
+import {
+  businessWeekStartSunday,
+  parseWeekKeyStart,
+  weekStartIsoKey,
+} from "../../lib/business/calendar";
 
 export interface WeeklyDemandRow {
-  weekStart: string; // ISO
+  weekStart: string; // YYYY-MM-DD Sunday (business week)
   // Total jars per SKU
   unitsBySku: Record<string, number>;
   // Per-warehouse split per SKU
@@ -20,18 +25,19 @@ export interface WeeklyDemandRow {
 }
 
 export interface HistoricalWeek {
+  /** YYYY-MM-DD of Sunday starting the business week */
   weekStart: string;
   totalJars: number;
   unitsBySku: Record<string, number>;
   unitsByWarehouseSku: Record<string, Record<string, number>>;
 }
 
-export function aggregateHistoricalByWeek(orders: CleanOrderLine[]): HistoricalWeek[] {
+export function aggregateHistoricalByWeek(orders: CleanOrderLine[], timeZone: string): HistoricalWeek[] {
   const map = new Map<string, HistoricalWeek>();
   for (const o of orders) {
     const d = parseAnyDate(o.date);
     if (!d) continue;
-    const ws = ISO(weekStart(d));
+    const ws = weekStartIsoKey(d, timeZone);
     if (!map.has(ws)) {
       map.set(ws, {
         weekStart: ws,
@@ -90,15 +96,21 @@ export function computeBaselineByLookback(
   return { totalJars: total / n, bySku };
 }
 
-function seasonalityForWeek(d: Date, settings: Settings): number {
-  const m = d.getMonth() + 1;
+function seasonalityForWeek(weekStartIso: string, settings: Settings): number {
+  const z = parseWeekKeyStart(weekStartIso, settings.businessTimezone);
+  const m = z.getMonth() + 1;
   const inSummer = m >= settings.summerStartMonth && m <= settings.summerEndMonth;
   return inSummer ? 1 + settings.summerSeasonalityPct : 1;
 }
 
-function eventMulForWeek(weekStartIso: string, events: MarketingEvent[], skuId?: string): number {
+function eventMulForWeek(
+  weekStartIso: string,
+  events: MarketingEvent[],
+  timeZone: string,
+  skuId?: string,
+): number {
   let mul = 1;
-  const wsDate = parseAnyDate(weekStartIso)!;
+  const wsDate = parseWeekKeyStart(weekStartIso, timeZone);
   const wsEnd = addWeeks(wsDate, 1);
   for (const e of events) {
     const d = parseAnyDate(e.date);
@@ -134,21 +146,24 @@ export interface ForecastInput {
 
 export function forecastDemand(input: ForecastInput): WeeklyDemandRow[] {
   const { history, settings, events, adSpend, warehouseMix, weeksOut } = input;
+  const tz = settings.businessTimezone;
   const baseline = computeBaselineByLookback(history, settings.forecastLookbackWeeks);
 
   const lastHist = history[history.length - 1]?.weekStart;
-  const start =
-    input.fromDate ||
-    (lastHist ? addWeeks(parseAnyDate(lastHist)!, 1) : weekStart(new Date()));
+  const start = input.fromDate
+    ? businessWeekStartSunday(input.fromDate, tz)
+    : lastHist
+      ? addWeeks(parseWeekKeyStart(lastHist, tz), 1)
+      : businessWeekStartSunday(new Date(), tz);
 
-  const weeks = eachWeekStart(start, weeksOut).map(ISO);
+  const weeks = eachWeekStart(start, weeksOut, tz).map((d) => weekStartIsoKey(d, tz));
   const out: WeeklyDemandRow[] = [];
 
   let cumulativeGrowth = 1;
   for (let i = 0; i < weeks.length; i++) {
     const ws = weeks[i];
     cumulativeGrowth *= 1 + settings.weeklyGrowthRate;
-    const seasonalityMul = seasonalityForWeek(parseAnyDate(ws)!, settings);
+    const seasonalityMul = seasonalityForWeek(ws, settings);
     const adMul = adMulForWeek(ws, adSpend, settings);
 
     const unitsBySku: Record<string, number> = {};
@@ -157,7 +172,7 @@ export function forecastDemand(input: ForecastInput): WeeklyDemandRow[] {
     let evgAvg = 0;
     let countSku = 0;
     for (const [sku, base] of Object.entries(baseline.bySku)) {
-      const evMul = eventMulForWeek(ws, events, sku);
+      const evMul = eventMulForWeek(ws, events, tz, sku);
       evgAvg += evMul;
       countSku++;
       const q = base * cumulativeGrowth * seasonalityMul * adMul * evMul;
@@ -200,6 +215,7 @@ export function estimateComponentBaseline(
   lookbackWeeks: number,
   warehouseIds: string[],
   skus: Sku[],
+  timeZone: string,
 ): Record<string, Record<string, number>> {
   const out: Record<string, Record<string, number>> = {};
   for (const w of warehouseIds) out[w] = {};
@@ -209,7 +225,7 @@ export function estimateComponentBaseline(
   for (const o of cleanOrders) {
     const d = parseAnyDate(o.date);
     if (!d) continue;
-    allWeeks.add(ISO(weekStart(d)));
+    allWeeks.add(weekStartIsoKey(d, timeZone));
   }
   const weeks = [...allWeeks].sort().slice(-lookbackWeeks);
   const weekSet = new Set(weeks);
@@ -222,7 +238,7 @@ export function estimateComponentBaseline(
   for (const o of cleanOrders) {
     const d = parseAnyDate(o.date);
     if (!d) continue;
-    const ws = ISO(weekStart(d));
+    const ws = weekStartIsoKey(d, timeZone);
     if (!weekSet.has(ws)) continue;
     const wh = o.warehouseId || warehouseIds[0];
     if (!totals[wh]) totals[wh] = {};

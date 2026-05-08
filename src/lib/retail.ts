@@ -1,5 +1,6 @@
 import type { AppState, InitialFill, RetailVelocity } from "../types";
-import { ISO, eachWeekStart, parseAnyDate, weekStart } from "./util";
+import { eachWeekStart, parseAnyDate, weekStart } from "./util";
+import { weekStartIsoKey } from "../../lib/business/calendar";
 
 /**
  * Retail demand forecast: per SKU per upcoming week.
@@ -11,7 +12,7 @@ import { ISO, eachWeekStart, parseAnyDate, weekStart } from "./util";
  * Returns rows shaped { weekStart, bySku: { [skuId]: jars } } for the next N weeks.
  */
 export interface RetailWeekRow {
-  weekStart: string; // ISO Monday
+  weekStart: string; // YYYY-MM-DD Sunday (business week)
   bySku: Record<string, number>;
   // Initial-fill events landing in this week, surfaced for UI labeling
   fills: { retailerId: string; skuId: string; qty: number; fillDate: string }[];
@@ -36,8 +37,9 @@ export function retailWeeklyDemand(
   weeksOut: number,
   fromDate?: Date,
 ): RetailWeekRow[] {
-  const start = fromDate ? weekStart(fromDate) : weekStart(new Date());
-  const weeks = eachWeekStart(start, weeksOut).map(ISO);
+  const tz = state.settings.businessTimezone;
+  const start = fromDate ? weekStart(fromDate, tz) : weekStart(new Date(), tz);
+  const weeks = eachWeekStart(start, weeksOut, tz).map((d) => weekStartIsoKey(d, tz));
   const activeMap: Record<string, boolean> = {};
   for (const r of state.retailers) activeMap[r.id] = r.active;
 
@@ -56,7 +58,7 @@ export function retailWeeklyDemand(
     if (activeMap[f.retailerId] === false) continue;
     const d = parseAnyDate(f.fillDate);
     if (!d) continue;
-    const ws = ISO(weekStart(d));
+    const ws = weekStartIsoKey(d, tz);
     const row = out.find((r) => r.weekStart === ws);
     if (!row) continue; // outside the window
     for (const line of f.lines) {

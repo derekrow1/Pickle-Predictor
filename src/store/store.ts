@@ -24,6 +24,7 @@ import {
   DEFAULT_WAREHOUSES,
   buildDefaultStateMap,
 } from "../lib/constants";
+import { normalizeAdSpendWeekKeys } from "../../lib/business/calendar";
 
 const initialState: AppState = {
   skus: DEFAULT_SKUS,
@@ -122,7 +123,11 @@ export const useStore = create<AppState & Actions>()(
 
       reset: () => set({ ...initialState }),
       resetAssumptions: () => set({ settings: DEFAULT_SETTINGS }),
-      importJSON: (s) => set({ ...s }),
+      importJSON: (s) =>
+        set({
+          ...s,
+          settings: { ...DEFAULT_SETTINGS, ...(s.settings || {}) },
+        }),
 
       updateSettings: (s) =>
         set((state) => ({ settings: { ...state.settings, ...s } })),
@@ -407,7 +412,7 @@ export const useStore = create<AppState & Actions>()(
     {
       name: "pickle-predictor-v1",
       storage: createJSONStorage(() => localStorage),
-      version: 7,
+      version: 8,
       migrate: (persistedState: any, fromVersion: number) => {
         // v1 -> v2: backfill orderMultiple / orderUnitLabel on SKUs and components.
         if (fromVersion < 2 && persistedState) {
@@ -449,6 +454,20 @@ export const useStore = create<AppState & Actions>()(
           if (!persistedState.settings) persistedState.settings = { ...DEFAULT_SETTINGS };
           if (typeof persistedState.settings.shopifyWeeksBack !== "number") {
             persistedState.settings.shopifyWeeksBack = 12;
+          }
+        }
+        // v7 -> v8: business timezone + Sun–Sat week keys (QuickBooks / Shopify alignment)
+        if (fromVersion < 8 && persistedState) {
+          if (!persistedState.settings) persistedState.settings = { ...DEFAULT_SETTINGS };
+          if (
+            typeof persistedState.settings.businessTimezone !== "string" ||
+            !persistedState.settings.businessTimezone.trim()
+          ) {
+            persistedState.settings.businessTimezone = DEFAULT_SETTINGS.businessTimezone;
+          }
+          if (Array.isArray(persistedState.adSpend)) {
+            const tz = persistedState.settings.businessTimezone;
+            persistedState.adSpend = normalizeAdSpendWeekKeys(persistedState.adSpend, tz);
           }
         }
         // v4 -> v5: add receipts array and stamp existing POs with status="open".

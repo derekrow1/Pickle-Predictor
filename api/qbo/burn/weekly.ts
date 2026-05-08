@@ -1,25 +1,11 @@
 import { getQboRealmId } from "../../../lib/business/qbo";
+import { qboWeeklyProfitLossRange, serverBusinessTimezone } from "../../../lib/business/calendar";
 import {
   extractColumnLabels,
   fetchProfitAndLossReport,
   findReportRowByLabel,
-  fmtDate,
   parseMoney,
 } from "../../../lib/business/qboProfitLoss";
-
-/** QBO weekly P&L columns are Sunday–Saturday (US-style weeks), not Monday–Sunday. */
-function startOfWeekSundayUtc(d: Date) {
-  const day = d.getUTCDay(); // 0 = Sunday
-  const out = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  out.setUTCDate(out.getUTCDate() - day);
-  return out;
-}
-
-function addDays(d: Date, days: number) {
-  const out = new Date(d.getTime());
-  out.setUTCDate(out.getUTCDate() + days);
-  return out;
-}
 
 /** If label looks like "M/D/YY - M/D/YY", return inclusive day count; else null (unknown). */
 function daysInWeekLabel(label: string): number | null {
@@ -40,21 +26,18 @@ export default async function handler(req: any, res: any) {
     }
 
     const realmId = getQboRealmId();
+    const timeZone = serverBusinessTimezone();
 
     const weeksRaw = Number(req.query?.weeks ?? 12);
     const avgWeeksRaw = Number(req.query?.avgWeeks ?? 8);
     const weeks = Math.max(4, Math.min(26, Number.isFinite(weeksRaw) ? weeksRaw : 12));
     const avgWeeks = Math.max(1, Math.min(26, Number.isFinite(avgWeeksRaw) ? avgWeeksRaw : 8));
-    const now = new Date();
-    const currentWeekSunday = startOfWeekSundayUtc(now);
-    // End on the last Saturday (full Sun–Sat weeks only). Partial current week excluded.
-    const endInclusive = addDays(currentWeekSunday, -1);
-    const start = addDays(currentWeekSunday, -7 * weeks);
-    const end = endInclusive;
+
+    const { startYmd, endYmd } = qboWeeklyProfitLossRange(new Date(), weeks, timeZone);
 
     const report = await fetchProfitAndLossReport({
-      start_date: fmtDate(start),
-      end_date: fmtDate(end),
+      start_date: startYmd,
+      end_date: endYmd,
       summarize_column_by: "Week",
     });
 
@@ -85,15 +68,16 @@ export default async function handler(req: any, res: any) {
     res.status(200).json({
       ok: true,
       realmId,
-      start_date: fmtDate(start),
-      end_date: fmtDate(end),
+      businessTimeZone: timeZone,
+      start_date: startYmd,
+      end_date: endYmd,
       weeks,
       avgWeeks,
       avgWeeklyBurn: avgBurnH,
       series,
       seriesComplete,
       definition:
-        "Burn is max(0, -Net Income) per week (accrual, Sunday–Saturday buckets per QuickBooks). The report ends on the last complete Saturday; the in-progress week is excluded. seriesComplete omits a trailing partial column when detectable. avgWeeklyBurn is the mean burn over the last avgWeeks complete weeks.",
+        "Burn is max(0, -Net Income) per week (accrual, Sunday–Saturday in BUSINESS_TIMEZONE / settings). Range aligns to QuickBooks weekly columns. avgWeeklyBurn is the mean burn over the last avgWeeks complete weeks.",
     });
   } catch (e: any) {
     res.status(500).json({ error: e?.message || String(e) });

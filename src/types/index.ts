@@ -133,7 +133,7 @@ export interface CleanOrderLine {
 }
 
 export interface AdSpendEntry {
-  weekStart: string; // ISO Monday
+  weekStart: string; // YYYY-MM-DD of Sunday starting the business week (see settings.businessTimezone)
   platform: string; // "Meta" | "TikTok" | "Google" | etc — freeform
   amount: number;
 }
@@ -190,6 +190,9 @@ export interface Settings {
   // Shopify
   // Number of weeks shown in the UI by default. 0 means "All cached".
   shopifyWeeksBack: number;
+
+  /** IANA timezone for Sun–Sat business weeks (Shopify bucketing, forecasts, retail). Match QuickBooks company / Vercel BUSINESS_TIMEZONE. */
+  businessTimezone: string;
 
   // Shared dataset sync (optional)
   // Only users who enter the admin token can publish updates; everyone can read.

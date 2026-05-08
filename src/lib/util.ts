@@ -1,4 +1,9 @@
-import { addDays, addWeeks, format, parseISO, startOfWeek, isValid } from "date-fns";
+import { addDays, addWeeks, format, parseISO, isValid } from "date-fns";
+import {
+  DEFAULT_BUSINESS_TIMEZONE,
+  businessWeekStartSunday,
+  eachBusinessWeekStart,
+} from "../../lib/business/calendar";
 
 export const ISO = (d: Date) => format(d, "yyyy-MM-dd");
 
@@ -27,16 +32,16 @@ export function parseAnyDate(v: unknown): Date | null {
   return null;
 }
 
-export const weekStart = (d: Date) => startOfWeek(d, { weekStartsOn: 1 }); // Monday
+/** Start of Sun–Sat business week in `timeZone` (default Pacific). Prefer weekStartIsoKey for stored keys. */
+export const weekStart = (d: Date, timeZone: string = DEFAULT_BUSINESS_TIMEZONE) =>
+  new Date(businessWeekStartSunday(d, timeZone).getTime());
 
-export function eachWeekStart(from: Date, weeks: number): Date[] {
-  const out: Date[] = [];
-  let d = weekStart(from);
-  for (let i = 0; i < weeks; i++) {
-    out.push(d);
-    d = addWeeks(d, 1);
-  }
-  return out;
+export function eachWeekStart(
+  from: Date,
+  weeks: number,
+  timeZone: string = DEFAULT_BUSINESS_TIMEZONE,
+): Date[] {
+  return eachBusinessWeekStart(from, weeks, timeZone).map((z) => new Date(z.getTime()));
 }
 
 export const fmtMoney = (n: number) =>

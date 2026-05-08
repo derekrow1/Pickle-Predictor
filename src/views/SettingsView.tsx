@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useStore, exportStateAsJSON } from "../store/store";
 import { PageHeader } from "../components/Layout";
 import { buildDefaultStateMap } from "../lib/constants";
+import { DEFAULT_BUSINESS_TIMEZONE } from "../../lib/business/calendar";
 import { uid, fmtNum, fmtDate } from "../lib/util";
 import { pullSharedStateOnOpen, pushSharedStateNow } from "../lib/sharedStateSync";
 import type {
@@ -178,6 +179,23 @@ export function SettingsView() {
           <Field label="Summer end month (1-12)" value={s.summerEndMonth} step={1} onChange={(v) => update({ summerEndMonth: v })}/>
           <Field label="Ad elasticity (per $1k over baseline)" value={s.adElasticity} step={0.005} onChange={(v) => update({ adElasticity: v })}/>
           <Field label="Ad baseline weekly $" value={s.adBaselineWeekly} step={500} onChange={(v) => update({ adBaselineWeekly: v })}/>
+          <label className="block mb-2 text-sm">
+            <div className="label mb-1">Business timezone (IANA)</div>
+            <input
+              type="text"
+              className="input font-mono text-xs"
+              value={s.businessTimezone}
+              placeholder={DEFAULT_BUSINESS_TIMEZONE}
+              onChange={(e) =>
+                update({ businessTimezone: e.target.value.trim() || DEFAULT_BUSINESS_TIMEZONE })
+              }
+            />
+            <p className="text-xs text-pickle-600 mt-1">
+              All weekly buckets use Sunday–Saturday in this timezone (Shopify orders, forecasts, retail, profit).
+              Match QuickBooks company time and set the same value in Vercel as{" "}
+              <code className="text-[11px]">BUSINESS_TIMEZONE</code> so Weekly Burn stays aligned.
+            </p>
+          </label>
         </div>
 
         <div className="card p-4">
