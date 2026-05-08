@@ -144,7 +144,7 @@ export function WeeklyBurnView() {
     <>
       <PageHeader
         title="Weekly Burn"
-        subtitle="QuickBooks accrual P&L · Monday–Sunday weeks · range ends on the last complete Sunday (UTC)"
+        subtitle="QuickBooks accrual P&L · Sunday–Saturday weeks (QBO) · range ends on the last complete Saturday (UTC)"
         right={
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <label className="flex items-center gap-1.5 text-pickle-700">
@@ -210,7 +210,7 @@ export function WeeklyBurnView() {
                 <span className="font-medium">{data.end_date}</span>
               </div>
               <div className="text-xs text-pickle-600 mt-1">
-                End date is the last Sunday of the last full week (UTC), so the in-progress week is excluded.
+                End date is the last Saturday of the last full Sun–Sat week (UTC), so the in-progress week is excluded.
               </div>
             </div>
           </div>

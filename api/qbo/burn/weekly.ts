@@ -7,11 +7,11 @@ import {
   parseMoney,
 } from "../../../lib/business/qboProfitLoss";
 
-function startOfWeekUtc(d: Date) {
-  const day = d.getUTCDay();
-  const mondayIndex = (day + 6) % 7;
+/** QBO weekly P&L columns are Sunday–Saturday (US-style weeks), not Monday–Sunday. */
+function startOfWeekSundayUtc(d: Date) {
+  const day = d.getUTCDay(); // 0 = Sunday
   const out = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  out.setUTCDate(out.getUTCDate() - mondayIndex);
+  out.setUTCDate(out.getUTCDate() - day);
   return out;
 }
 
@@ -46,11 +46,10 @@ export default async function handler(req: any, res: any) {
     const weeks = Math.max(4, Math.min(26, Number.isFinite(weeksRaw) ? weeksRaw : 12));
     const avgWeeks = Math.max(1, Math.min(26, Number.isFinite(avgWeeksRaw) ? avgWeeksRaw : 8));
     const now = new Date();
-    const thisWeekStart = startOfWeekUtc(now);
-    // Full Monday–Sunday weeks only: end on the Sunday before the in-progress week (QBO is picky
-    // about summarize_column_by=Week when the range does not align to week boundaries).
-    const endInclusive = addDays(thisWeekStart, -1);
-    const start = addDays(thisWeekStart, -7 * weeks);
+    const currentWeekSunday = startOfWeekSundayUtc(now);
+    // End on the last Saturday (full Sun–Sat weeks only). Partial current week excluded.
+    const endInclusive = addDays(currentWeekSunday, -1);
+    const start = addDays(currentWeekSunday, -7 * weeks);
     const end = endInclusive;
 
     const report = await fetchProfitAndLossReport({
@@ -94,7 +93,7 @@ export default async function handler(req: any, res: any) {
       series,
       seriesComplete,
       definition:
-        "Burn is max(0, -Net Income) per week (accrual, Monday–Sunday buckets). The report ends before the current partial week. seriesComplete omits a trailing partial column when detectable. avgWeeklyBurn is the mean burn over the last avgWeeks complete weeks.",
+        "Burn is max(0, -Net Income) per week (accrual, Sunday–Saturday buckets per QuickBooks). The report ends on the last complete Saturday; the in-progress week is excluded. seriesComplete omits a trailing partial column when detectable. avgWeeklyBurn is the mean burn over the last avgWeeks complete weeks.",
     });
   } catch (e: any) {
     res.status(500).json({ error: e?.message || String(e) });
