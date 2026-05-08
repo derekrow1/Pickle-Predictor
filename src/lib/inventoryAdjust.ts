@@ -8,9 +8,11 @@ const keyOf = (warehouseId: string, itemId: string): Key => `${warehouseId}|${it
 export function adjustedSnapshotForCurrent(
   state: AppState,
   snap: InventorySnapshot,
+  asOfDateIso?: string,
 ): { snapshot: InventorySnapshot; consumption: Map<Key, number> } {
   const baseDate = parseAnyDate(snap.date);
   const baseIso = baseDate ? ISO(baseDate) : snap.date.slice(0, 10);
+  const asOfIso = asOfDateIso ? asOfDateIso.slice(0, 10) : null;
 
   // Start with base snapshot quantities.
   const qty = new Map<Key, number>();
@@ -23,6 +25,7 @@ export function adjustedSnapshotForCurrent(
   for (const o of state.cleanOrders) {
     const d = (o.date || "").slice(0, 10);
     if (!d || d <= baseIso) continue;
+    if (asOfIso && d > asOfIso) continue;
     const wh = o.warehouseId || "";
     if (!wh) continue;
 

@@ -15,6 +15,7 @@ import { fmtDate, fmtNum } from "../lib/util";
 import type { InventorySnapshotRow } from "../types";
 import { PageHeader } from "../components/Layout";
 import { syncShopifyOnOpen } from "../lib/shopifySync";
+import { adjustedSnapshotForCurrent, diffSnapshots } from "../lib/inventoryAdjust";
 
 interface StagedFile {
   filename: string;
@@ -23,8 +24,16 @@ interface StagedFile {
   rows: InventorySnapshotRow[];
   unknownItems: { sku: string; qty: number }[];
   warnings: string[];
+  variancePickles?: Array<{
+    warehouseId: string;
+    itemId: string;
+    expected: number;
+    uploaded: number;
+    delta: number;
+  }>;
   metadata: LotControlImportResult["metadata"];
   applied: boolean;
+  isBlended?: boolean;
 }
 
 export function DataView() {
@@ -35,6 +44,7 @@ export function DataView() {
   const setWeeksBack = useStore((s) => s.setShopifyWeeksBack);
   const removeInv = useStore((s) => s.removeInventorySnapshot);
   const upsertSlice = useStore((s) => s.upsertInventorySlice);
+  const addSnapshot = useStore((s) => s.addInventorySnapshot);
 
   const [shopifyMsg, setShopifyMsg] = useState<string>("");
   const [shopifySyncMsg, setShopifySyncMsg] = useState<string>("");
@@ -81,24 +91,35 @@ export function DataView() {
         const parsed = await parseFile(file);
         if (isBlendedInventoryFormat(parsed)) {
           const result = parseBlendedInventoryReport(parsed, whIds);
-          // Stage one row per warehouse for user review, but all share same file/date.
-          const byWh = new Map<string, InventorySnapshotRow[]>();
-          for (const r of result.snapshot.rows) {
-            if (!byWh.has(r.warehouseId)) byWh.set(r.warehouseId, []);
-            byWh.get(r.warehouseId)!.push(r);
-          }
-          for (const [wh, rs] of byWh) {
-            newStaged.push({
-              filename: file.name,
-              warehouseId: wh,
-              date: result.snapshot.date,
-              rows: rs,
-              unknownItems: result.unknownItems,
-              warnings: result.warnings,
-              metadata: { periodStart: null, periodEnd: null, onHandTimestamp: null, title: "Blended Inventory" },
-              applied: false,
-            });
-          }
+          // Stage a single snapshot that updates all warehouses at once.
+          // Compute pickles-only variance vs expected (prior upload minus Shopify usage up to this date).
+          const prev = state.inventorySnapshots.length
+            ? state.inventorySnapshots[state.inventorySnapshots.length - 1]
+            : null;
+          const expected = prev
+            ? adjustedSnapshotForCurrent(state, prev, result.snapshot.date).snapshot
+            : null;
+          const skuIds = new Set(state.skus.map((s) => s.id));
+          const variancePickles =
+            expected
+              ? diffSnapshots(
+                  { date: expected.date, rows: expected.rows.filter((r) => skuIds.has(r.itemId)) },
+                  { date: result.snapshot.date, rows: result.snapshot.rows.filter((r) => skuIds.has(r.itemId)) },
+                )
+              : undefined;
+
+          newStaged.push({
+            filename: file.name,
+            warehouseId: "ALL",
+            date: result.snapshot.date,
+            rows: result.snapshot.rows,
+            unknownItems: result.unknownItems,
+            warnings: result.warnings,
+            variancePickles,
+            metadata: { periodStart: null, periodEnd: null, onHandTimestamp: null, title: "Blended Inventory" },
+            applied: false,
+            isBlended: true,
+          });
         } else if (isLotControlFormat(parsed) || isInventorySnapshotFormat(parsed)) {
           // Single-warehouse-per-file (Lot Control Roll Forward OR Inventory snapshot)
           const result = parseLotControlReport(parsed, whIds);
@@ -158,7 +179,11 @@ export function DataView() {
     setStaged((s) =>
       s.map((f) => {
         if (f.applied || !f.warehouseId || !f.date) return f;
-        upsertSlice(f.date, f.warehouseId, f.rows);
+        if (f.isBlended) {
+          addSnapshot({ date: f.date, rows: f.rows });
+        } else {
+          upsertSlice(f.date, f.warehouseId, f.rows);
+        }
         count++;
         return { ...f, applied: true };
       }),
@@ -247,6 +272,42 @@ export function DataView() {
                             </ul>
                           </details>
                         )}
+                        {f.isBlended && f.variancePickles && f.variancePickles.length > 0 && (
+                          <details className="text-[10px] text-blue-800">
+                            <summary>
+                              Pickle variance vs expected ({f.variancePickles.slice(0, 15).length}
+                              {f.variancePickles.length > 15 ? "+" : ""})
+                            </summary>
+                            <div className="text-[10px] text-pickle-700 mt-1">
+                              Expected = previous upload minus Shopify usage since then (through {fmtDate(f.date)}).
+                            </div>
+                            <table className="w-full mt-1">
+                              <thead>
+                                <tr>
+                                  <th className="text-left">WH</th>
+                                  <th className="text-left">SKU</th>
+                                  <th className="text-right">Expected</th>
+                                  <th className="text-right">Uploaded</th>
+                                  <th className="text-right">Δ</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {f.variancePickles.slice(0, 15).map((v, i) => (
+                                  <tr key={i}>
+                                    <td>{v.warehouseId}</td>
+                                    <td>{v.itemId}</td>
+                                    <td className="text-right">{fmtNum(v.expected)}</td>
+                                    <td className="text-right">{fmtNum(v.uploaded)}</td>
+                                    <td className={`text-right ${v.delta < 0 ? "text-red-700" : "text-green-700"}`}>
+                                      {v.delta > 0 ? "+" : ""}
+                                      {fmtNum(v.delta)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </details>
+                        )}
                       </td>
                       <td>
                         <select
@@ -255,7 +316,11 @@ export function DataView() {
                           onChange={(e) => updateStaged(idx, { warehouseId: e.target.value })}
                           disabled={f.applied}
                         >
-                          <option value="">— pick —</option>
+                          {f.isBlended ? (
+                            <option value="ALL">All warehouses</option>
+                          ) : (
+                            <option value="">— pick —</option>
+                          )}
                           {whIds.map((id) => (
                             <option key={id} value={id}>
                               {id}
