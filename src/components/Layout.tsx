@@ -49,7 +49,7 @@ export function Layout({
   setPage: (p: Page) => void;
   children: ReactNode;
 }) {
-  const lastShopify = useStore((s) => s.lastShopifyImportAt);
+  const lastShopify = useStore((s) => s.lastShopifySyncAt || s.lastShopifyImportAt);
   const lastInv = useStore((s) => s.lastInventoryImportAt);
   return (
     <div className="flex h-full">
@@ -79,7 +79,7 @@ export function Layout({
           {lastShopify ? (
             <div>Shopify: {fmtDate(lastShopify.slice(0, 10))}</div>
           ) : (
-            <div className="text-amber-300">No Shopify upload yet</div>
+            <div className="text-amber-300">No Shopify data yet</div>
           )}
           {lastInv ? (
             <div>Inventory: {fmtDate(lastInv.slice(0, 10))}</div>

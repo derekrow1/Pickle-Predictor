@@ -24,8 +24,8 @@ export function OrderNowView() {
       <>
         <PageHeader title="Order Now" subtitle="Recommended POs for this week" />
         <EmptyState
-          title="Upload data to see recommendations"
-          description="Import a warehouse inventory snapshot and a Shopify orders export from the Raw Data view, then come back here."
+          title="Sync data to see recommendations"
+          description="Import a warehouse inventory snapshot, then sync Shopify orders from the Raw Data view."
         />
       </>
     );
