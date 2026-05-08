@@ -6,6 +6,8 @@ import {
   parseLotControlReport,
   isLotControlFormat,
   isInventorySnapshotFormat,
+  isBlendedInventoryFormat,
+  parseBlendedInventoryReport,
 } from "../lib/importers";
 import type { LotControlImportResult } from "../lib/importers";
 import { cleanShopifyRows } from "../lib/cleanShopify";
@@ -77,7 +79,27 @@ export function DataView() {
     for (const file of files) {
       try {
         const parsed = await parseFile(file);
-        if (isLotControlFormat(parsed) || isInventorySnapshotFormat(parsed)) {
+        if (isBlendedInventoryFormat(parsed)) {
+          const result = parseBlendedInventoryReport(parsed, whIds);
+          // Stage one row per warehouse for user review, but all share same file/date.
+          const byWh = new Map<string, InventorySnapshotRow[]>();
+          for (const r of result.snapshot.rows) {
+            if (!byWh.has(r.warehouseId)) byWh.set(r.warehouseId, []);
+            byWh.get(r.warehouseId)!.push(r);
+          }
+          for (const [wh, rs] of byWh) {
+            newStaged.push({
+              filename: file.name,
+              warehouseId: wh,
+              date: result.snapshot.date,
+              rows: rs,
+              unknownItems: result.unknownItems,
+              warnings: result.warnings,
+              metadata: { periodStart: null, periodEnd: null, onHandTimestamp: null, title: "Blended Inventory" },
+              applied: false,
+            });
+          }
+        } else if (isLotControlFormat(parsed) || isInventorySnapshotFormat(parsed)) {
           // Single-warehouse-per-file (Lot Control Roll Forward OR Inventory snapshot)
           const result = parseLotControlReport(parsed, whIds);
           newStaged.push({

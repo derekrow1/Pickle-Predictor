@@ -29,7 +29,7 @@ export function InventoryView() {
     <>
       <PageHeader
         title="Inventory"
-        subtitle={`Pickle SKUs · last snapshot ${fmtDate(lastSnap.date)}`}
+        subtitle={`Pickle SKUs · last upload ${fmtDate(lastSnap.date)} · adjusted for Shopify orders since then`}
         right={<StockBarLegend />}
       />
       <div className="card overflow-hidden">

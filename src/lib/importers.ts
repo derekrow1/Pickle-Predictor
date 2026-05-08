@@ -87,6 +87,20 @@ export function isInventorySnapshotFormat(parsed: ParsedFile): boolean {
 }
 
 /**
+ * Returns true if the file looks like a SWIMS "Blended Inventory" report:
+ * Header row like: SKU, Description, Joshspicklesmo-18, Joshspicklesnv-54, ...
+ */
+export function isBlendedInventoryFormat(parsed: ParsedFile): boolean {
+  const headers = (parsed.rawArrays[0] || []).map((h: any) =>
+    String(h || "").trim().toLowerCase(),
+  );
+  if (headers.length < 4) return false;
+  if (headers[0] !== "sku") return false;
+  if (!headers.includes("description")) return false;
+  return headers.slice(2).some((h) => h.includes("joshspickles") && /mo|nv|pa/.test(h));
+}
+
+/**
  * Detects a warehouse id from a filename. Handles both:
  *   - "Joshs_Pickles-MO_RollFwd_..." (separator-bounded)
  *   - "Joshspicklesmo_Inventory_..." (glued to a longer string)
@@ -283,6 +297,95 @@ export interface WarehouseImportResult {
   snapshots: InventorySnapshot[];
   unknownItems: { sku: string; description: string }[];
   warnings: string[];
+}
+
+export interface BlendedInventoryImportResult {
+  snapshot: InventorySnapshot;
+  warnings: string[];
+  unknownItems: { sku: string; qty: number }[];
+}
+
+function parseWarehouseIdFromBlendedHeader(h: string, warehouseIds: string[]): string | null {
+  const lower = String(h || "").toLowerCase();
+  for (const id of warehouseIds) {
+    const idL = id.toLowerCase();
+    if (lower.includes(idL)) return id;
+    // Common pattern: joshspicklesmo-18
+    if (lower.includes(`joshspickles${idL}`)) return id;
+  }
+  return null;
+}
+
+/**
+ * Parse SWIMS blended inventory report (multi-warehouse, single snapshot).
+ * Uses filename date (YYYYMMDD) if present; otherwise today.
+ */
+export function parseBlendedInventoryReport(
+  parsed: ParsedFile,
+  warehouseIds: string[],
+  inventorySkuMap: Record<string, string> = DEFAULT_INVENTORY_SKU_MAP,
+): BlendedInventoryImportResult {
+  const arrays = parsed.rawArrays;
+  const header = (arrays[0] || []).map((h: any) => String(h || "").trim());
+  const warnings: string[] = [];
+  const unknown = new Map<string, number>();
+
+  const snapshotDate = dateFromFilename(parsed.filename) || ISO(new Date());
+
+  // Build warehouse columns map: col idx -> warehouseId
+  const whCols: Array<{ idx: number; warehouseId: string }> = [];
+  for (let i = 2; i < header.length; i++) {
+    const wh = parseWarehouseIdFromBlendedHeader(header[i], warehouseIds);
+    if (wh) whCols.push({ idx: i, warehouseId: wh });
+  }
+  if (whCols.length === 0) {
+    warnings.push("No warehouse columns detected (expected columns like Joshspicklesmo-18).");
+  }
+
+  const acc = new Map<string, number>(); // key = wh|itemId
+  for (let i = 1; i < arrays.length; i++) {
+    const row = arrays[i] || [];
+    const sku = String(row[0] || "").trim();
+    const desc = String(row[1] || "").trim();
+    if (!sku || sku.toLowerCase() === "sku") continue;
+    if (sku.toLowerCase() === "totals") continue;
+
+    if (sku.startsWith("H_")) {
+      warnings.push(`Excluded HOLD stock: ${sku}`);
+      continue;
+    }
+    if (sku.startsWith("D_")) {
+      warnings.push(`Excluded DAMAGED stock: ${sku}`);
+      continue;
+    }
+    if (/sticker|label/i.test(sku)) continue;
+
+    let itemId = inventorySkuMap[sku];
+    if (!itemId) itemId = inventorySkuMap[desc] || "";
+
+    for (const c of whCols) {
+      const qty = parseFloat(String(row[c.idx] || 0)) || 0;
+      if (!qty) continue;
+      if (!itemId) {
+        unknown.set(sku, (unknown.get(sku) || 0) + qty);
+        continue;
+      }
+      const key = `${c.warehouseId}|${itemId}`;
+      acc.set(key, (acc.get(key) || 0) + qty);
+    }
+  }
+
+  const rows: InventorySnapshotRow[] = [];
+  for (const [key, qty] of acc) {
+    const [warehouseId, itemId] = key.split("|");
+    rows.push({ warehouseId, itemId, qty });
+  }
+
+  return {
+    snapshot: { date: snapshotDate, rows },
+    warnings,
+    unknownItems: [...unknown.entries()].map(([sku, qty]) => ({ sku, qty })),
+  };
 }
 
 export function importWarehouseInventory(

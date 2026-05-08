@@ -15,6 +15,7 @@ import {
   forecastDemand,
 } from "./forecast";
 import type { HistoricalWeek, WeeklyDemandRow } from "./forecast";
+import { adjustedSnapshotForCurrent } from "./inventoryAdjust";
 
 export interface OrderRecRow {
   itemId: string;
@@ -121,7 +122,8 @@ export function computeOrderRecs(state: AppState): OrderEngineResult {
     state.skus,
   );
 
-  const snap = findLatestSnapshot(state.inventorySnapshots);
+  const snapRaw = findLatestSnapshot(state.inventorySnapshots);
+  const snap = snapRaw ? adjustedSnapshotForCurrent(state, snapRaw).snapshot : null;
   const today = new Date();
   const recs: OrderRecRow[] = [];
 
