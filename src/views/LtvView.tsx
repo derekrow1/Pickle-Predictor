@@ -1,15 +1,11 @@
-import { useMemo, useState } from "react";
-import Papa from "papaparse";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "../components/Layout";
 import {
-  applyCustomerSubscriptionEmails,
   computeDashboard,
   computeScenario,
   enrichSubscribers,
   normalizeShopifyApiOrders,
-  parseShopifyOrdersExportRows,
   scenarioFromBaseline,
-  subscriberEmailsFromCustomerExport,
   type LtvBaseline,
   type LtvDashboard,
   type LtvOrder,
@@ -25,26 +21,6 @@ function pct(x: number | null | undefined) {
 function money(x: number | null | undefined) {
   if (x == null || !Number.isFinite(x)) return "—";
   return `$${x.toFixed(2)}`;
-}
-
-async function parseCsvFile(file: File): Promise<Record<string, unknown>[]> {
-  const name = (file.name || "").toLowerCase();
-  if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
-    throw new Error("This page expects a .csv file (Shopify → Export orders → CSV). Excel .xlsx won’t parse here.");
-  }
-  let text = await file.text();
-  text = text.replace(/^\uFEFF/, "");
-  const parsed = Papa.parse<Record<string, unknown>>(text, {
-    header: true,
-    skipEmptyLines: "greedy",
-    transformHeader: (h) => String(h).replace(/^\uFEFF/g, "").trim(),
-  });
-  const rows = (parsed.data || []).filter((r) => r && Object.keys(r).some((k) => String((r as Record<string, unknown>)[k] ?? "").trim() !== ""));
-  const fatal = (parsed.errors || []).filter((e) => e && e.type !== "Quotes" && e.code !== "UndetectableDelimiter");
-  if (rows.length === 0 && fatal.length > 0) {
-    throw new Error(fatal[0]?.message || "Could not parse CSV.");
-  }
-  return rows;
 }
 
 function HistogramTable({
@@ -230,60 +206,14 @@ export function LtvView() {
     setScenarioNon({ ...baselineScenarioNon });
   };
 
-  const handleOrdersCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setStatus("Parsing orders export…");
-    try {
-      const rows = await parseCsvFile(file);
-      const { orders: parsed, stats } = parseShopifyOrdersExportRows(rows);
-      ingestOrders(parsed, matureDays);
-      if (parsed.length === 0) {
-        setStatus(
-          `Parsed ${fmtNum(stats.inputRows)} data rows → ${fmtNum(stats.orderGroups)} order groups, but 0 usable paid orders. ` +
-            `Skipped: unpaid ${fmtNum(stats.skippedUnpaid)}, no email ${fmtNum(stats.skippedNoEmail)}, bad total ${fmtNum(stats.skippedBadTotal)}, bad date ${fmtNum(stats.skippedBadDate)}. ` +
-            `Use Shopify’s line-item orders CSV with columns Email, Financial Status, Created at, Total, Id (or Name).`,
-        );
-      } else {
-        setStatus(
-          `Loaded ${fmtNum(parsed.length)} paid orders (${fmtNum(stats.orderGroups)} order groups from ${fmtNum(stats.inputRows)} rows). Subscriber split applied.`,
-        );
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setStatus(`Error: ${msg}`);
-    }
-    e.target.value = "";
-  };
-
-  const handleCustomersCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!orders.length) {
-      setStatus("Upload orders CSV first, then customers CSV.");
-      e.target.value = "";
-      return;
-    }
-    setStatus("Merging customer subscription tags…");
-    try {
-      const rows = await parseCsvFile(file);
-      const subEmails = subscriberEmailsFromCustomerExport(rows);
-      const merged = applyCustomerSubscriptionEmails(orders, subEmails);
-      ingestOrders(merged, matureDays);
-      setStatus(`Merged customer tags (${fmtNum(subEmails.size)} subscription-tagged emails).`);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setStatus(`Error: ${msg}`);
-    }
-    e.target.value = "";
-  };
-
   const refreshFromShopify = async () => {
     setStatus("Fetching from Shopify…");
     try {
-      const r = await fetch("/api/shopify/pull");
-      const data = (await r.json()) as { orders?: unknown[]; error?: string };
-      if (!r.ok) throw new Error(data?.error || "Shopify fetch failed");
+      // Pull a large-enough window for LTV analysis (up to ~1y).
+      const createdAtMin = new Date(Date.now() - 52 * 7 * 24 * 60 * 60 * 1000).toISOString();
+      const r = await fetch(`/api/shopify/pull?createdAtMin=${encodeURIComponent(createdAtMin)}`);
+      const data = (await r.json()) as { orders?: unknown[]; error?: string; body?: string };
+      if (!r.ok) throw new Error(data?.error || data?.body || "Shopify fetch failed");
 
       const parsed = normalizeShopifyApiOrders(data?.orders || []);
       ingestOrders(parsed, matureDays);
@@ -300,6 +230,12 @@ export function LtvView() {
   };
 
   const bAll = dashboard?.all;
+
+  useEffect(() => {
+    // Auto-load on first visit; user can still manually refresh.
+    if (!orders.length) void refreshFromShopify();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
@@ -323,18 +259,7 @@ export function LtvView() {
           <div className="card p-4 mb-4">
             <div className="text-sm font-semibold mb-2">📥 Load data</div>
             <div className="text-xs text-pickle-700 mb-2">
-              Upload <strong>Orders</strong> export (paid rows only). Optionally upload <strong>Customers</strong> export
-              to tag subscribers via the <code>Tags</code> column (e.g. “Subscription Active”).
-            </div>
-            <div className="space-y-2">
-              <label className="block text-xs">
-                Orders CSV
-                <input className="block mt-1" type="file" accept=".csv" onChange={handleOrdersCsv} />
-              </label>
-              <label className="block text-xs">
-                Customers CSV (optional)
-                <input className="block mt-1" type="file" accept=".csv" onChange={handleCustomersCsv} />
-              </label>
+              This page pulls directly from Shopify. Subscribers are inferred from subscription-like tags/source/line items.
             </div>
             <label className="block mt-3 text-xs">
               Mature cohort min. tenure (days since first order)
