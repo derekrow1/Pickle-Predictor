@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     }
 
     // Find the latest state blob (lexicographically newest key).
-    const { blobs } = await list({ prefix: STATE_PREFIX, token, limit: 10 });
+    const { blobs } = await list({ prefix: STATE_PREFIX, token, limit: 10, access: "private" });
     if (!blobs || blobs.length === 0) {
       res.status(404).json({ error: "No shared state found" });
       return;
@@ -28,8 +28,8 @@ export default async function handler(req, res) {
       .slice()
       .sort((a, b) => String(b.pathname || "").localeCompare(String(a.pathname || "")))[0];
 
-    const meta = await head(latest.pathname, { token });
-    const body = await get(latest.pathname, { token });
+    const meta = await head(latest.pathname, { token, access: "private" });
+    const body = await get(latest.pathname, { token, access: "private" });
     const text = await body.text();
     let json;
     try {
