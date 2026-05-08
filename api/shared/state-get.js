@@ -1,4 +1,4 @@
-import { list, head, get } from "@vercel/blob";
+import { list, get } from "@vercel/blob";
 
 const STATE_PREFIX = "shared/state";
 
@@ -28,9 +28,12 @@ export default async function handler(req, res) {
       .slice()
       .sort((a, b) => String(b.pathname || "").localeCompare(String(a.pathname || "")))[0];
 
-    const meta = await head(latest.pathname, { token, access: "private" });
-    const body = await get(latest.pathname, { token, access: "private" });
-    const text = await body.text();
+    const result = await get(latest.pathname, { token, access: "private" });
+    if (!result || result.statusCode !== 200) {
+      res.status(404).json({ error: "Shared state blob not found" });
+      return;
+    }
+    const text = await new Response(result.stream).text();
     let json;
     try {
       json = JSON.parse(text);
@@ -41,8 +44,8 @@ export default async function handler(req, res) {
 
     res.status(200).json({
       ok: true,
-      updatedAt: meta.uploadedAt,
-      pathname: meta.pathname,
+      updatedAt: result.blob?.uploadedAt,
+      pathname: result.blob?.pathname,
       state: json,
     });
   } catch (e) {
