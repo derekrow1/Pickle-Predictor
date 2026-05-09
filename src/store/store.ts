@@ -24,7 +24,7 @@ import {
   DEFAULT_WAREHOUSES,
   buildDefaultStateMap,
 } from "../lib/constants";
-import { normalizeAdSpendWeekKeys } from "../../lib/business/calendar";
+import { normalizeAdSpendWeekKeys, normalizeBusinessTimeZone } from "../../lib/business/calendar";
 
 const initialState: AppState = {
   skus: DEFAULT_SKUS,
@@ -465,6 +465,9 @@ export const useStore = create<AppState & Actions>()(
           ) {
             persistedState.settings.businessTimezone = DEFAULT_SETTINGS.businessTimezone;
           }
+          persistedState.settings.businessTimezone = normalizeBusinessTimeZone(
+            persistedState.settings.businessTimezone,
+          );
           if (Array.isArray(persistedState.adSpend)) {
             const tz = persistedState.settings.businessTimezone;
             persistedState.adSpend = normalizeAdSpendWeekKeys(persistedState.adSpend, tz);

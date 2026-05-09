@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../store/store";
 import { fmtMoney, fmtDate, fmtDateShort, ISO, eachWeekStart, weekStart, uid } from "../lib/util";
-import { weekStartIsoKey } from "../../lib/business/calendar";
+import { normalizeBusinessTimeZone, weekStartIsoKey } from "../../lib/business/calendar";
 import { PageHeader } from "../components/Layout";
 import { EVENT_TYPES, PLATFORM_OPTIONS } from "../lib/constants";
 
@@ -11,7 +11,7 @@ export function MarketingView() {
   const upsertEvent = useStore((s) => s.upsertEvent);
   const removeEvent = useStore((s) => s.removeEvent);
 
-  const tz = state.settings.businessTimezone;
+  const tz = normalizeBusinessTimeZone(state.settings.businessTimezone);
   const startDate = useMemo(() => weekStart(new Date(), tz), [tz]);
   const weeks = useMemo(
     () => eachWeekStart(new Date(startDate.getFullYear(), startDate.getMonth() - 1, 1), 16, tz),

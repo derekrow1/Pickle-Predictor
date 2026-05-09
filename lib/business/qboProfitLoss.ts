@@ -34,17 +34,29 @@ function throwIfQboFault(body: unknown, httpStatus: number): void {
   );
 }
 
+/** QBO US companies often expect MM/DD/YYYY on report query params; ISO can trigger validation faults. */
+export function qboUsDateFromIsoYmd(isoYmd: string): string {
+  const m = isoYmd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return isoYmd;
+  return `${m[2]}/${m[3]}/${m[1]}`;
+}
+
 export async function fetchProfitAndLossReport(params: {
   start_date: string;
   end_date: string;
   summarize_column_by: "Month" | "Week";
   accounting_method?: "Accrual" | "Cash";
+  /** "us" = MM/DD/YYYY (recommended for weekly P&amp;L); "iso" = YYYY-MM-DD */
+  reportDateStyle?: "iso" | "us";
 }): Promise<Report> {
-  const realmId = getQboRealmId();
-  const pathRealm = encodeURIComponent(realmId);
+  const realmId = getQboRealmId().trim();
+  const pathRealm = /^\d+$/.test(realmId) ? realmId : encodeURIComponent(realmId);
   const url = new URL(`https://${qboHost()}/v3/company/${pathRealm}/reports/ProfitAndLoss`);
-  url.searchParams.set("start_date", params.start_date);
-  url.searchParams.set("end_date", params.end_date);
+  const style = params.reportDateStyle ?? "iso";
+  const start = style === "us" ? qboUsDateFromIsoYmd(params.start_date) : params.start_date;
+  const end = style === "us" ? qboUsDateFromIsoYmd(params.end_date) : params.end_date;
+  url.searchParams.set("start_date", start);
+  url.searchParams.set("end_date", end);
   url.searchParams.set("summarize_column_by", params.summarize_column_by);
   url.searchParams.set("accounting_method", params.accounting_method ?? "Accrual");
   url.searchParams.set("minorversion", "75");
