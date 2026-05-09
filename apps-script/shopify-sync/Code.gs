@@ -1,7 +1,7 @@
 /**
  * Fills tab "RAW Shpfy Data" from Shopify Admin REST API (orders.json).
  * Row shape matches your workbook: first 80 columns = Shopify order export through "Paid Date".
- * Columns 81+ (Week Start … GJS19) are left untouched — use ARRAYFORMULA or refill formulas if needed.
+ * Columns 81+ (Week Start ... GJS19) are left untouched - use ARRAYFORMULA or refill formulas if needed.
  *
  * Script Properties: SHOPIFY_SHOP, SHOPIFY_ACCESS_TOKEN
  * Optional: SHOPIFY_API_VERSION, MONTHS_BACK, MAX_PAGES
@@ -11,7 +11,7 @@ var RAW_SHEET_NAME = "RAW Shpfy Data";
 /** Import width: through "Paid Date" only (do not overwrite formula columns to the right). */
 var NUM_SHOPIFY_IMPORT_COLS = 80;
 
-/** Expected headers cols A–CB; row 1 of the sheet should match (spacing/names). Used for validation toast. */
+/** Expected headers for cols A through CB (80 cols); row 1 should match. Used for validation toast. */
 var EXPECTED_HEADERS_80 = [
   "Name",
   "Email",
@@ -443,7 +443,7 @@ function headersMatchSheet_(sheet) {
 }
 
 /**
- * Clears cols A–CB (1–80) from row 2 down; writes Shopify rows. Does not touch col 81+ (formulas).
+ * Clears cols A through CB (1-80) from row 2 down; writes Shopify rows. Does not touch col 81+ (formulas).
  */
 function refreshRawShopifyData() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -454,7 +454,7 @@ function refreshRawShopifyData() {
 
   if (!headersMatchSheet_(sheet)) {
     ss.toast(
-      "Warning: row 1 cols A–CB should match EXPECTED_HEADERS_80 in script. Check spelling/spaces.",
+      "Warning: row 1 first 80 cols should match EXPECTED_HEADERS_80 in script. Check spelling/spaces.",
       "Shopify",
       10
     );
@@ -508,6 +508,6 @@ function installDailyTrigger() {
     .nearMinute(0)
     .create();
   SpreadsheetApp.getUi().alert(
-    "Daily trigger installed: refreshRawShopifyData at 1:00 AM America/Denver. Check Extensions → Apps Script → Triggers."
+    "Daily trigger installed: refreshRawShopifyData at 1:00 AM America/Denver. Check Extensions > Apps Script > Triggers."
   );
 }
