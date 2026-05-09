@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../store/store";
 import { fmtMoney, fmtDate, fmtDateShort, ISO, eachWeekStart, weekStart, uid } from "../lib/util";
-import { normalizeBusinessTimeZone, weekStartIsoKey } from "../../lib/business/calendar";
+import { weekStartIsoKey } from "../../lib/business/calendar";
 import { PageHeader } from "../components/Layout";
 import { EVENT_TYPES, PLATFORM_OPTIONS } from "../lib/constants";
 
@@ -11,11 +11,10 @@ export function MarketingView() {
   const upsertEvent = useStore((s) => s.upsertEvent);
   const removeEvent = useStore((s) => s.removeEvent);
 
-  const tz = normalizeBusinessTimeZone(state.settings.businessTimezone);
-  const startDate = useMemo(() => weekStart(new Date(), tz), [tz]);
+  const startDate = useMemo(() => weekStart(new Date()), []);
   const weeks = useMemo(
-    () => eachWeekStart(new Date(startDate.getFullYear(), startDate.getMonth() - 1, 1), 16, tz),
-    [startDate, tz],
+    () => eachWeekStart(new Date(startDate.getFullYear(), startDate.getMonth() - 1, 1), 16),
+    [startDate],
   );
   const platforms = useMemo(() => {
     const set = new Set<string>(PLATFORM_OPTIONS);
@@ -44,7 +43,7 @@ export function MarketingView() {
               onClick={() => {
                 if (!newPlatform.trim()) return;
                 // Add a 0-amount entry to register the platform
-                upsertAd({ weekStart: weekStartIsoKey(weeks[0], tz), platform: newPlatform.trim(), amount: 0 });
+                upsertAd({ weekStart: weekStartIsoKey(weeks[0]), platform: newPlatform.trim(), amount: 0 });
                 setNewPlatform("");
               }}
             >
@@ -58,7 +57,7 @@ export function MarketingView() {
               <tr>
                 <th className="bg-pickle-50">Platform</th>
                 {weeks.map((w) => {
-                  const iso = weekStartIsoKey(w, tz);
+                  const iso = weekStartIsoKey(w);
                   return (
                     <th key={iso} className="bg-pickle-50 text-right text-[10px]">
                       {fmtDateShort(iso)}
@@ -72,7 +71,7 @@ export function MarketingView() {
                 <tr key={p}>
                   <td className="font-semibold whitespace-nowrap">{p}</td>
                   {weeks.map((w) => {
-                    const iso = weekStartIsoKey(w, tz);
+                    const iso = weekStartIsoKey(w);
                     const entry = state.adSpend.find(
                       (x) => x.weekStart === iso && x.platform === p,
                     );
@@ -96,7 +95,7 @@ export function MarketingView() {
               <tr className="font-semibold bg-pickle-50/50">
                 <td>Total</td>
                 {weeks.map((w) => {
-                  const iso = weekStartIsoKey(w, tz);
+                  const iso = weekStartIsoKey(w);
                   const total = state.adSpend
                     .filter((x) => x.weekStart === iso)
                     .reduce((a, b) => a + b.amount, 0);

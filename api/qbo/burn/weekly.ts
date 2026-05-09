@@ -1,5 +1,5 @@
 import { getQboRealmId } from "../../../lib/business/qbo";
-import { qboWeeklyProfitLossRange, serverBusinessTimezone } from "../../../lib/business/calendar";
+import { qboWeeklyProfitLossRange } from "../../../lib/business/calendar";
 import {
   extractColumnLabels,
   fetchProfitAndLossReport,
@@ -26,14 +26,13 @@ export default async function handler(req: any, res: any) {
     }
 
     const realmId = getQboRealmId();
-    const timeZone = serverBusinessTimezone();
 
     const weeksRaw = Number(req.query?.weeks ?? 12);
     const avgWeeksRaw = Number(req.query?.avgWeeks ?? 8);
     const weeks = Math.max(4, Math.min(26, Number.isFinite(weeksRaw) ? weeksRaw : 12));
     const avgWeeks = Math.max(1, Math.min(26, Number.isFinite(avgWeeksRaw) ? avgWeeksRaw : 8));
 
-    const { startYmd, endYmd } = qboWeeklyProfitLossRange(new Date(), weeks, timeZone);
+    const { startYmd, endYmd } = qboWeeklyProfitLossRange(new Date(), weeks);
     if (startYmd > endYmd) {
       throw new Error(`Invalid burn range: start ${startYmd} after end ${endYmd}`);
     }
@@ -87,7 +86,6 @@ export default async function handler(req: any, res: any) {
     res.status(200).json({
       ok: true,
       realmId,
-      businessTimeZone: timeZone,
       start_date: startYmd,
       end_date: endYmd,
       weeks,
@@ -96,7 +94,7 @@ export default async function handler(req: any, res: any) {
       series,
       seriesComplete,
       definition:
-        "Burn is max(0, -Net Income) per week (accrual, Sunday–Saturday in BUSINESS_TIMEZONE / settings). Range aligns to QuickBooks weekly columns. avgWeeklyBurn is the mean burn over the last avgWeeks complete weeks.",
+        "Burn is max(0, -Net Income) per week (accrual, Sunday–Saturday calendar weeks). avgWeeklyBurn is the mean burn over the last avgWeeks complete weeks.",
     });
   } catch (e: any) {
     res.status(500).json({ error: e?.message || String(e) });

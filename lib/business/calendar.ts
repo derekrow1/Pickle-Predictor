@@ -1,102 +1,88 @@
-import { TZDate } from "@date-fns/tz";
-import { addDays, addWeeks, startOfWeek } from "date-fns";
+import { addDays, addWeeks } from "date-fns";
 
 /**
- * Single source of truth for “business weeks”:
- * Sunday–Saturday, in one IANA timezone (matches QuickBooks Online weekly P&L for US companies).
- * Use this everywhere we bucket Shopify orders, forecasts, retail, and QBO report ranges.
+ * Week buckets: Sunday–Saturday, using **calendar dates only** (YYYY-MM-DD).
+ * Order/revenue rows use the date as stored (first YYYY-MM-DD in the string)—no IANA timezone or hour rules.
  */
-export const DEFAULT_BUSINESS_TIMEZONE = "America/Los_Angeles";
 
-/** Strip quotes/whitespace; fall back if env is not a valid IANA zone (avoids cryptic runtime errors). */
-export function normalizeBusinessTimeZone(input: string | undefined | null): string {
-  const raw = String(input ?? "")
-    .trim()
-    .replace(/^['"]|['"]$/g, "");
-  if (!raw) return DEFAULT_BUSINESS_TIMEZONE;
-  try {
-    new Intl.DateTimeFormat("en-CA", { timeZone: raw }).format(new Date(0));
-    return raw;
-  } catch {
-    return DEFAULT_BUSINESS_TIMEZONE;
-  }
+/** YYYY-MM-DD from a Date using UTC calendar fields (stable, date-only). */
+export function calendarYmdUtc(instant: Date): string {
+  const y = instant.getUTCFullYear();
+  const m = String(instant.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(instant.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
-export function serverBusinessTimezone(): string {
-  try {
-    const v = typeof process !== "undefined" && process.env?.BUSINESS_TIMEZONE;
-    if (v && String(v).trim()) return normalizeBusinessTimeZone(String(v));
-  } catch {
-    /* no process (browser) */
-  }
-  return DEFAULT_BUSINESS_TIMEZONE;
-}
-
-export function calendarYmdInZone(instant: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(instant);
-}
-
-export function businessWeekStartSunday(instant: Date, timeZone: string): TZDate {
-  const z = new TZDate(instant, timeZone);
-  return startOfWeek(z, { weekStartsOn: 0 }) as TZDate;
-}
-
-/** Canonical week id: YYYY-MM-DD of the Sunday that starts the business week. */
-export function weekStartIsoKey(instant: Date, timeZone: string): string {
-  const ws = businessWeekStartSunday(instant, timeZone);
-  return calendarYmdInZone(ws, timeZone);
-}
-
-export function parseWeekKeyStart(ymd: string, timeZone: string): TZDate {
+/** Sunday YYYY-MM-DD of the week that contains this calendar day. */
+export function weekStartSundayFromYmd(ymd: string): string {
   const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) {
-    return businessWeekStartSunday(new Date(), timeZone);
-  }
+  if (!m) return ymd;
   const y = Number(m[1]);
   const mo = Number(m[2]) - 1;
-  const d = Number(m[3]);
-  return new TZDate(y, mo, d, 0, 0, 0, timeZone);
+  const day = Number(m[3]);
+  const dt = new Date(Date.UTC(y, mo, day, 12, 0, 0));
+  const dow = dt.getUTCDay();
+  dt.setUTCDate(dt.getUTCDate() - dow);
+  return calendarYmdUtc(dt);
 }
 
-export function eachBusinessWeekStart(from: Date, count: number, timeZone: string): TZDate[] {
-  const first = businessWeekStartSunday(from, timeZone);
-  const out: TZDate[] = [];
+/**
+ * Prefer the date as written on the order/revenue field (leading YYYY-MM-DD).
+ * Falls back to null if there is no date prefix (caller may parse a full timestamp).
+ */
+export function weekStartKeyForStoredDate(raw: string | undefined | null): string | null {
+  if (raw == null || raw === "") return null;
+  const m = String(raw).trim().match(/^(\d{4}-\d{2}-\d{2})/);
+  if (!m) return null;
+  return weekStartSundayFromYmd(m[1]);
+}
+
+/** Week key from an absolute instant (uses UTC calendar day of that instant). */
+export function weekStartIsoKey(instant: Date): string {
+  return weekStartSundayFromYmd(calendarYmdUtc(instant));
+}
+
+export function businessWeekStartSunday(instant: Date): Date {
+  const key = weekStartIsoKey(instant);
+  const m = key.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return instant;
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0));
+}
+
+export function parseWeekKeyStart(ymd: string): Date {
+  const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return businessWeekStartSunday(new Date());
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0));
+}
+
+export function eachBusinessWeekStart(from: Date, count: number): Date[] {
+  const first = businessWeekStartSunday(from);
+  const out: Date[] = [];
   for (let i = 0; i < count; i++) {
-    out.push(addWeeks(first, i) as TZDate);
+    out.push(addWeeks(first, i));
   }
   return out;
 }
 
-/** start/end YYYY-MM-DD for QuickBooks ProfitAndLoss?summarize_column_by=Week */
-export function qboWeeklyProfitLossRange(
-  now: Date,
-  numWeeks: number,
-  timeZone: string,
-): { startYmd: string; endYmd: string } {
-  const currentWeekSunday = businessWeekStartSunday(now, timeZone);
+/** start/end YYYY-MM-DD for QuickBooks ProfitAndLoss?summarize_column_by=Week (UTC calendar weeks). */
+export function qboWeeklyProfitLossRange(now: Date, numWeeks: number): { startYmd: string; endYmd: string } {
+  const currentWeekSunday = businessWeekStartSunday(now);
   const endInstant = addDays(currentWeekSunday, -1);
   const startInstant = addDays(currentWeekSunday, -7 * numWeeks);
   return {
-    startYmd: calendarYmdInZone(startInstant, timeZone),
-    endYmd: calendarYmdInZone(endInstant, timeZone),
+    startYmd: calendarYmdUtc(startInstant),
+    endYmd: calendarYmdUtc(endInstant),
   };
 }
 
 export type AdSpendEntryLike = { weekStart: string; platform: string; amount: number };
 
-/** Remap ad rows onto Sun–Sat week keys and merge duplicates (e.g. after changing week rules). */
-export function normalizeAdSpendWeekKeys(entries: AdSpendEntryLike[], timeZone: string): AdSpendEntryLike[] {
+export function normalizeAdSpendWeekKeys(entries: AdSpendEntryLike[]): AdSpendEntryLike[] {
   const merged = new Map<string, AdSpendEntryLike>();
   for (const e of entries) {
     const m = e.weekStart.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!m) continue;
-    const anchor = new TZDate(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0, timeZone);
-    const nk = weekStartIsoKey(anchor, timeZone);
+    const nk = weekStartSundayFromYmd(`${m[1]}-${m[2]}-${m[3]}`);
     const k = `${nk}|${e.platform}`;
     const prev = merged.get(k);
     if (prev) prev.amount += e.amount;

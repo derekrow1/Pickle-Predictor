@@ -24,7 +24,7 @@ import {
   DEFAULT_WAREHOUSES,
   buildDefaultStateMap,
 } from "../lib/constants";
-import { normalizeAdSpendWeekKeys, normalizeBusinessTimeZone } from "../../lib/business/calendar";
+import { normalizeAdSpendWeekKeys } from "../../lib/business/calendar";
 
 const initialState: AppState = {
   skus: DEFAULT_SKUS,
@@ -412,7 +412,7 @@ export const useStore = create<AppState & Actions>()(
     {
       name: "pickle-predictor-v1",
       storage: createJSONStorage(() => localStorage),
-      version: 8,
+      version: 9,
       migrate: (persistedState: any, fromVersion: number) => {
         // v1 -> v2: backfill orderMultiple / orderUnitLabel on SKUs and components.
         if (fromVersion < 2 && persistedState) {
@@ -456,21 +456,18 @@ export const useStore = create<AppState & Actions>()(
             persistedState.settings.shopifyWeeksBack = 12;
           }
         }
-        // v7 -> v8: business timezone + Sun–Sat week keys (QuickBooks / Shopify alignment)
+        // v7 -> v8: Sun–Sat week keys on ad spend (legacy; v9 removes timezone setting)
         if (fromVersion < 8 && persistedState) {
           if (!persistedState.settings) persistedState.settings = { ...DEFAULT_SETTINGS };
-          if (
-            typeof persistedState.settings.businessTimezone !== "string" ||
-            !persistedState.settings.businessTimezone.trim()
-          ) {
-            persistedState.settings.businessTimezone = DEFAULT_SETTINGS.businessTimezone;
-          }
-          persistedState.settings.businessTimezone = normalizeBusinessTimeZone(
-            persistedState.settings.businessTimezone,
-          );
           if (Array.isArray(persistedState.adSpend)) {
-            const tz = persistedState.settings.businessTimezone;
-            persistedState.adSpend = normalizeAdSpendWeekKeys(persistedState.adSpend, tz);
+            persistedState.adSpend = normalizeAdSpendWeekKeys(persistedState.adSpend);
+          }
+        }
+        // v8 -> v9: drop businessTimezone; date-only week keys
+        if (fromVersion < 9 && persistedState?.settings) {
+          delete persistedState.settings.businessTimezone;
+          if (Array.isArray(persistedState.adSpend)) {
+            persistedState.adSpend = normalizeAdSpendWeekKeys(persistedState.adSpend);
           }
         }
         // v4 -> v5: add receipts array and stamp existing POs with status="open".

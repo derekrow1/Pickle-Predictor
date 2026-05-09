@@ -1,5 +1,4 @@
 import type { Sku, ComponentItem, Warehouse, Settings } from "../types";
-import { DEFAULT_BUSINESS_TIMEZONE } from "../../lib/business/calendar";
 
 export const DEFAULT_SKUS: Sku[] = [
   { id: "HDW25", name: "Heritage Dill Whole 25oz",   jarOz: 25, retailPrice: 11.99, cogsPerJar: 3.2, orderMultiple: 6, orderUnitLabel: "case", active: true },
@@ -82,7 +81,6 @@ export const DEFAULT_SETTINGS: Settings = {
   fixedFeesPerOrder: 0.30,
   promoCostPctOfOrder: 0.05,
   shopifyWeeksBack: 12,
-  businessTimezone: DEFAULT_BUSINESS_TIMEZONE,
   sharedStateAdminToken: "",
 };
 

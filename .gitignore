@@ -29,3 +29,4 @@ pickle-predictor-*.json
 *.njsproj
 *.sln
 *.sw?
+.vercel/
