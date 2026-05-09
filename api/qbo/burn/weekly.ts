@@ -34,12 +34,31 @@ export default async function handler(req: any, res: any) {
     const avgWeeks = Math.max(1, Math.min(26, Number.isFinite(avgWeeksRaw) ? avgWeeksRaw : 8));
 
     const { startYmd, endYmd } = qboWeeklyProfitLossRange(new Date(), weeks, timeZone);
+    if (startYmd > endYmd) {
+      throw new Error(`Invalid burn range: start ${startYmd} after end ${endYmd}`);
+    }
 
-    const report = await fetchProfitAndLossReport({
-      start_date: startYmd,
-      end_date: endYmd,
-      summarize_column_by: "Week",
-    });
+    let report;
+    try {
+      report = await fetchProfitAndLossReport({
+        start_date: startYmd,
+        end_date: endYmd,
+        summarize_column_by: "Week",
+        reportDateStyle: "us",
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/pattern/i.test(msg)) {
+        report = await fetchProfitAndLossReport({
+          start_date: startYmd,
+          end_date: endYmd,
+          summarize_column_by: "Week",
+          reportDateStyle: "iso",
+        });
+      } else {
+        throw e;
+      }
+    }
 
     const colLabels = extractColumnLabels(report);
     const netIncomeRow = findReportRowByLabel(report, "Net Income");

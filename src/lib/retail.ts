@@ -1,6 +1,6 @@
 import type { AppState, InitialFill, RetailVelocity } from "../types";
 import { eachWeekStart, parseAnyDate, weekStart } from "./util";
-import { weekStartIsoKey } from "../../lib/business/calendar";
+import { normalizeBusinessTimeZone, weekStartIsoKey } from "../../lib/business/calendar";
 
 /**
  * Retail demand forecast: per SKU per upcoming week.
@@ -37,7 +37,7 @@ export function retailWeeklyDemand(
   weeksOut: number,
   fromDate?: Date,
 ): RetailWeekRow[] {
-  const tz = state.settings.businessTimezone;
+  const tz = normalizeBusinessTimeZone(state.settings.businessTimezone);
   const start = fromDate ? weekStart(fromDate, tz) : weekStart(new Date(), tz);
   const weeks = eachWeekStart(start, weeksOut, tz).map((d) => weekStartIsoKey(d, tz));
   const activeMap: Record<string, boolean> = {};

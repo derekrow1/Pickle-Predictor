@@ -4,6 +4,7 @@ import { eachWeekStart, parseAnyDate } from "./util";
 import { componentsForOrder } from "./packoutRules";
 import {
   businessWeekStartSunday,
+  normalizeBusinessTimeZone,
   parseWeekKeyStart,
   weekStartIsoKey,
 } from "../../lib/business/calendar";
@@ -97,7 +98,7 @@ export function computeBaselineByLookback(
 }
 
 function seasonalityForWeek(weekStartIso: string, settings: Settings): number {
-  const z = parseWeekKeyStart(weekStartIso, settings.businessTimezone);
+  const z = parseWeekKeyStart(weekStartIso, normalizeBusinessTimeZone(settings.businessTimezone));
   const m = z.getMonth() + 1;
   const inSummer = m >= settings.summerStartMonth && m <= settings.summerEndMonth;
   return inSummer ? 1 + settings.summerSeasonalityPct : 1;
@@ -146,7 +147,7 @@ export interface ForecastInput {
 
 export function forecastDemand(input: ForecastInput): WeeklyDemandRow[] {
   const { history, settings, events, adSpend, warehouseMix, weeksOut } = input;
-  const tz = settings.businessTimezone;
+  const tz = normalizeBusinessTimeZone(settings.businessTimezone);
   const baseline = computeBaselineByLookback(history, settings.forecastLookbackWeeks);
 
   const lastHist = history[history.length - 1]?.weekStart;

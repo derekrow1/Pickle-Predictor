@@ -8,10 +8,24 @@ import { addDays, addWeeks, startOfWeek } from "date-fns";
  */
 export const DEFAULT_BUSINESS_TIMEZONE = "America/Los_Angeles";
 
+/** Strip quotes/whitespace; fall back if env is not a valid IANA zone (avoids cryptic runtime errors). */
+export function normalizeBusinessTimeZone(input: string | undefined | null): string {
+  const raw = String(input ?? "")
+    .trim()
+    .replace(/^['"]|['"]$/g, "");
+  if (!raw) return DEFAULT_BUSINESS_TIMEZONE;
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: raw }).format(new Date(0));
+    return raw;
+  } catch {
+    return DEFAULT_BUSINESS_TIMEZONE;
+  }
+}
+
 export function serverBusinessTimezone(): string {
   try {
     const v = typeof process !== "undefined" && process.env?.BUSINESS_TIMEZONE;
-    if (v && String(v).trim()) return String(v).trim();
+    if (v && String(v).trim()) return normalizeBusinessTimeZone(String(v));
   } catch {
     /* no process (browser) */
   }

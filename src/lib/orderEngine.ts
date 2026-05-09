@@ -16,6 +16,7 @@ import {
 } from "./forecast";
 import type { HistoricalWeek, WeeklyDemandRow } from "./forecast";
 import { adjustedSnapshotForCurrent } from "./inventoryAdjust";
+import { normalizeBusinessTimeZone } from "../../lib/business/calendar";
 
 export interface OrderRecRow {
   itemId: string;
@@ -92,7 +93,7 @@ function onOrderFor(pos: OpenPO[], itemId: string, warehouseId: string): number 
 
 export function computeOrderRecs(state: AppState): OrderEngineResult {
   const settings = state.settings;
-  const tz = settings.businessTimezone;
+  const tz = normalizeBusinessTimeZone(settings.businessTimezone);
   const history = aggregateHistoricalByWeek(state.cleanOrders, tz);
   const warehouseMix = computeWarehouseMix(history, settings.forecastLookbackWeeks);
   const baseline = computeBaselineByLookback(history, settings.forecastLookbackWeeks);
