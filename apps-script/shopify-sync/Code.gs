@@ -105,6 +105,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("Shopify")
     .addItem("Refresh RAW Shpfy Data now", "refreshRawShopifyData")
+    .addItem("Debug auth (check Executions > Logs)", "debugShopifyAuth")
     .addItem("Install daily trigger (~1:00 AM Denver)", "installDailyTrigger")
     .addToUi();
 }
@@ -113,6 +114,60 @@ function getProp_(key, defaultValue) {
   var v = PropertiesService.getScriptProperties().getProperty(key);
   if (v == null || String(v).trim() === "") return defaultValue;
   return String(v).trim();
+}
+
+/** Same shop the Vercel app uses: Script property SHOPIFY_SHOP or SHOPIFY_SHOP_DOMAIN, else SHOPIFY_SHOP_DEFAULT in code. */
+function getShopHostname_() {
+  var s = getProp_("SHOPIFY_SHOP", "");
+  if (!s) s = getProp_("SHOPIFY_SHOP_DOMAIN", "");
+  if (!s) s = SHOPIFY_SHOP_DEFAULT;
+  return normalizeShop_(s);
+}
+
+/** Strip quotes / Bearer; same token names as Vercel: SHOPIFY_ACCESS_TOKEN or SHOPIFY_ADMIN_ACCESS_TOKEN. */
+function normalizeToken_(raw) {
+  if (raw == null) return "";
+  var t = String(raw).trim();
+  if (
+    (t.charAt(0) === '"' && t.charAt(t.length - 1) === '"') ||
+    (t.charAt(0) === "'" && t.charAt(t.length - 1) === "'")
+  ) {
+    t = t.slice(1, -1).trim();
+  }
+  if (/^Bearer\s+/i.test(t)) t = t.replace(/^Bearer\s+/i, "").trim();
+  return t;
+}
+
+function getShopifyAccessToken_() {
+  var t = normalizeToken_(getProp_("SHOPIFY_ACCESS_TOKEN", ""));
+  if (!t) t = normalizeToken_(getProp_("SHOPIFY_ADMIN_ACCESS_TOKEN", ""));
+  return t;
+}
+
+/**
+ * Run once: View > Logs. Expect HTTP 200 and JSON with "shop".
+ * If 401: token is not for this .myshopify.com host — match Vercel SHOPIFY_SHOP_DOMAIN + SHOPIFY_ADMIN_ACCESS_TOKEN exactly.
+ */
+function debugShopifyAuth() {
+  var shop = getShopHostname_();
+  var token = getShopifyAccessToken_();
+  Logger.log("host=" + shop);
+  Logger.log("tokenLen=" + token.length + " shpat=" + (token.indexOf("shpat_") === 0));
+  if (!token) {
+    Logger.log("No token: set SHOPIFY_ACCESS_TOKEN or SHOPIFY_ADMIN_ACCESS_TOKEN");
+    return;
+  }
+  var ver = getProp_("SHOPIFY_API_VERSION", "2026-04");
+  var url = "https://" + shop + "/admin/api/" + ver + "/shop.json";
+  var resp = UrlFetchApp.fetch(url, {
+    muteHttpExceptions: true,
+    headers: {
+      "X-Shopify-Access-Token": token,
+      Accept: "application/json",
+    },
+  });
+  Logger.log("GET shop.json -> " + resp.getResponseCode());
+  Logger.log(resp.getContentText().substring(0, 300));
 }
 
 function normalizeShop_(shop) {
@@ -293,10 +348,10 @@ function fetchOrdersPage_(url, token) {
 }
 
 function fetchAllShopifyOrders_() {
-  var shop = normalizeShop_(getProp_("SHOPIFY_SHOP", SHOPIFY_SHOP_DEFAULT));
-  var token = getProp_("SHOPIFY_ACCESS_TOKEN", "");
-  if (!shop) throw new Error("Set SHOPIFY_SHOP_DEFAULT in Code.gs or Script property SHOPIFY_SHOP");
-  if (!token) throw new Error("Set Script property SHOPIFY_ACCESS_TOKEN");
+  var shop = getShopHostname_();
+  var token = getShopifyAccessToken_();
+  if (!shop) throw new Error("Set SHOPIFY_SHOP_DEFAULT in Code.gs or SHOPIFY_SHOP / SHOPIFY_SHOP_DOMAIN in Script properties");
+  if (!token) throw new Error("Set Script property SHOPIFY_ACCESS_TOKEN or SHOPIFY_ADMIN_ACCESS_TOKEN");
 
   var apiVersion = getProp_("SHOPIFY_API_VERSION", "2026-04");
   var monthsBack = parseInt(getProp_("MONTHS_BACK", "12"), 10) || 12;
