@@ -3,10 +3,16 @@
  * Row shape matches your workbook: first 80 columns = Shopify order export through "Paid Date".
  * Columns 81+ (Week Start ... GJS19) are left untouched - use ARRAYFORMULA or refill formulas if needed.
  *
- * Script Properties: SHOPIFY_SHOP, SHOPIFY_ACCESS_TOKEN
- * Optional: SHOPIFY_API_VERSION, MONTHS_BACK, MAX_PAGES
+ * Script Properties: SHOPIFY_ACCESS_TOKEN (required)
+ * Optional script properties: SHOPIFY_SHOP (overrides default below), SHOPIFY_API_VERSION, MONTHS_BACK, MAX_PAGES
  */
 var RAW_SHEET_NAME = "RAW Shpfy Data";
+
+/**
+ * Store hostname if you cannot keep SHOPIFY_SHOP in Script properties (Google UI often allows only one row).
+ * Edit if the shop changes. No https://
+ */
+var SHOPIFY_SHOP_DEFAULT = "efbdem-vu.myshopify.com";
 
 /** Import width: through "Paid Date" only (do not overwrite formula columns to the right). */
 var NUM_SHOPIFY_IMPORT_COLS = 80;
@@ -287,9 +293,9 @@ function fetchOrdersPage_(url, token) {
 }
 
 function fetchAllShopifyOrders_() {
-  var shop = normalizeShop_(getProp_("SHOPIFY_SHOP", ""));
+  var shop = normalizeShop_(getProp_("SHOPIFY_SHOP", SHOPIFY_SHOP_DEFAULT));
   var token = getProp_("SHOPIFY_ACCESS_TOKEN", "");
-  if (!shop) throw new Error('Set Script property SHOPIFY_SHOP (e.g. "store.myshopify.com")');
+  if (!shop) throw new Error("Set SHOPIFY_SHOP_DEFAULT in Code.gs or Script property SHOPIFY_SHOP");
   if (!token) throw new Error("Set Script property SHOPIFY_ACCESS_TOKEN");
 
   var apiVersion = getProp_("SHOPIFY_API_VERSION", "2026-04");

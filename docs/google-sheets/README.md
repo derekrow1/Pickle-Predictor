@@ -22,12 +22,14 @@ The script **does not change row 1**. It **clears columns A–CB** (1–80) from
 
 ## 3. Script properties (secrets — never commit)
 
-In Apps Script: **Project Settings → Script properties** → Add rows:
+In Apps Script: **Project Settings → Script properties** → add at least **`SHOPIFY_ACCESS_TOKEN`** (Admin API token, `shpat_…`). The Google UI sometimes only allows **one** property row; that is OK.
+
+**Shop domain:** The script uses `SHOPIFY_SHOP_DEFAULT` at the top of `Code.gs` (edit there if your `.myshopify.com` host changes). Optional Script property **`SHOPIFY_SHOP`** overrides that default if you add it later.
 
 | Property               | Example / notes                                      |
 |------------------------|------------------------------------------------------|
-| `SHOPIFY_SHOP`         | `your-store.myshopify.com` (no `https://`)         |
-| `SHOPIFY_ACCESS_TOKEN` | Admin API token (`shpat_…`)                          |
+| `SHOPIFY_ACCESS_TOKEN` | **Required** — Admin API token (`shpat_…`)         |
+| `SHOPIFY_SHOP`         | Optional; overrides `SHOPIFY_SHOP_DEFAULT` in code   |
 | `SHOPIFY_API_VERSION`  | Optional; default `2026-04`                         |
 | `MONTHS_BACK`          | Optional; default `12` (`created_at_min`)          |
 | `MAX_PAGES`            | Optional; default `100` (250 orders per page cap)  |
