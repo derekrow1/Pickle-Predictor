@@ -1,6 +1,6 @@
 # Google Sheets — automated Shopify → **RAW Shpfy Data**
 
-This folder documents how to use the Apps Script in [`../../apps-script/shopify-sync/`](../../apps-script/shopify-sync/) so your workbook **copy** pulls orders into tab **`RAW Shpfy Data`** (same column layout as a Shopify order export / Pickle Predictor `cleanShopifyRows`), instead of manual copy-paste.
+This folder documents how to use the Apps Script in [`../../apps-script/shopify-sync/`](../../apps-script/shopify-sync/) so your workbook **copy** pulls orders into tab **`RAW Shpfy Data`** with the **full Shopify export shape (80 columns through `Paid Date`)**, plus your extra formula columns to the right untouched, instead of manual copy-paste.
 
 ## 1. Duplicate the spreadsheet (you do this in Drive)
 
@@ -9,9 +9,9 @@ This folder documents how to use the Apps Script in [`../../apps-script/shopify-
 2. **File → Make a copy** (name it e.g. `Shopify Inventory — auto-import`).
 3. Confirm the copy still has a tab named exactly **`RAW Shpfy Data`** and **`CLEAN Shpfy`** (and the rest of your tabs) unchanged.
 
-The script **does not change row 1** — your full header row stays as you designed it. It **clears row 2 downward** across **all columns through your last header column**, then writes Shopify data in **columns A–K** only (same 11 fields as a standard order export). Extra header columns **L onward** remain on row 1; data rows leave those cells **empty** unless you extend the script.
+The script **does not change row 1**. It **clears columns A–CB** (1–80) from row 2 down, then writes Shopify API data to match those headers. Columns **CC onward** (e.g. `Week Start` … `GJS19`) are not filled from the API; **rows below the new import** have those columns **cleared** so stale values do not linger. Prefer **`ARRAYFORMULA`** in row 2 for those columns if you want them to auto-fill.
 
-**Important:** **CLEAN Shpfy** (and formulas) must still match the **order and names** of the first **11** columns your sheet expects for a Shopify export. If your headers A–K differ from the standard list below, either reorder row 1 to match or ask to add a column-mapping layer in the script.
+**Important:** Row 1 **A–CB** must match `EXPECTED_HEADERS_80` in `Code.gs` **exactly**. If you see a header-mismatch toast, compare character-for-character (spaces, spelling).
 
 ## 2. Bind the script to the copy
 
@@ -65,13 +65,9 @@ clasp push
 
 Link the pushed project to your spreadsheet: **Extensions → Apps Script** → use the same script ID, or manage via clasp’s `.clasp.json`.
 
-## Column layout (must match **RAW Shpfy Data** expectations)
+## Column layout (first 80 columns)
 
-Header row written by the script:
-
-`Name`, `Paid at`, `Financial Status`, `Shipping`, `Taxes`, `Total`, `Discount Amount`, `Shipping Province`, `Lineitem sku`, `Lineitem quantity`, `Lineitem price`
-
-This matches the Pickle Predictor importer in [`src/lib/cleanShopify.ts`](../../src/lib/cleanShopify.ts). If your live sheet’s first row differs **even by spelling**, update either the sheet header or the `HEADER_ROW` array in `Code.gs` so they match **exactly**.
+The canonical list is `EXPECTED_HEADERS_80` in [`apps-script/shopify-sync/Code.gs`](../../apps-script/shopify-sync/Code.gs) (Shopify-style export through **`Paid Date`**). Your sheet row 1 **A–CB** should match it exactly.
 
 ## Repo branch (optional)
 

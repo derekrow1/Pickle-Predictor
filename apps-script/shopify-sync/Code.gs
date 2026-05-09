@@ -1,31 +1,98 @@
 /**
  * Fills tab "RAW Shpfy Data" from Shopify Admin REST API (orders.json).
- * Row shape matches Shopify order-export style expected by Pickle Predictor cleanShopifyRows:
- * Name, Paid at, Financial Status, Shipping, Taxes, Total, Discount Amount,
- * Shipping Province, Lineitem sku, Lineitem quantity, Lineitem price
+ * Row shape matches your workbook: first 80 columns = Shopify order export through "Paid Date".
+ * Columns 81+ (Week Start … GJS19) are left untouched — use ARRAYFORMULA or refill formulas if needed.
  *
- * Script Properties (Project Settings → Script properties):
- *   SHOPIFY_SHOP        e.g. your-store.myshopify.com
- *   SHOPIFY_ACCESS_TOKEN  Admin API access token (shpat_...)
- * Optional:
- *   SHOPIFY_API_VERSION  default 2026-04
- *   MONTHS_BACK          default 12  (created_at_min)
- *   MAX_PAGES            default 100 (pagination safety cap)
+ * Script Properties: SHOPIFY_SHOP, SHOPIFY_ACCESS_TOKEN
+ * Optional: SHOPIFY_API_VERSION, MONTHS_BACK, MAX_PAGES
  */
 var RAW_SHEET_NAME = "RAW Shpfy Data";
 
-var HEADER_ROW = [
+/** Import width: through "Paid Date" only (do not overwrite formula columns to the right). */
+var NUM_SHOPIFY_IMPORT_COLS = 80;
+
+/** Expected headers cols A–CB; row 1 of the sheet should match (spacing/names). Used for validation toast. */
+var EXPECTED_HEADERS_80 = [
   "Name",
-  "Paid at",
+  "Email",
   "Financial Status",
+  "Paid at",
+  "Fulfillment Status",
+  "Fulfilled at",
+  "Accepts Marketing",
+  "Currency",
+  "Subtotal",
   "Shipping",
   "Taxes",
   "Total",
+  "Discount Code",
   "Discount Amount",
-  "Shipping Province",
-  "Lineitem sku",
+  "Shipping Method",
+  "Created at",
   "Lineitem quantity",
+  "Lineitem name",
   "Lineitem price",
+  "Lineitem compare at price",
+  "Lineitem sku",
+  "Lineitem requires shipping",
+  "Lineitem taxable",
+  "Lineitem fulfillment status",
+  "Billing Name",
+  "Billing Street",
+  "Billing Address1",
+  "Billing Address2",
+  "Billing Company",
+  "Billing City",
+  "Billing Zip",
+  "Billing Province",
+  "Billing Country",
+  "Billing Phone",
+  "Shipping Name",
+  "Shipping Street",
+  "Shipping Address1",
+  "Shipping Address2",
+  "Shipping Company",
+  "Shipping City",
+  "Shipping Zip",
+  "Shipping Province",
+  "Shipping Country",
+  "Shipping Phone",
+  "Notes",
+  "Note Attributes",
+  "Cancelled at",
+  "Payment Method",
+  "Payment Reference",
+  "Refunded Amount",
+  "Vendor",
+  "Outstanding Balance",
+  "Employee",
+  "Location",
+  "Device ID",
+  "Id",
+  "Tags",
+  "Risk Level",
+  "Source",
+  "Lineitem discount",
+  "Tax 1 Name",
+  "Tax 1 Value",
+  "Tax 2 Name",
+  "Tax 2 Value",
+  "Tax 3 Name",
+  "Tax 3 Value",
+  "Tax 4 Name",
+  "Tax 4 Value",
+  "Tax 5 Name",
+  "Tax 5 Value",
+  "Phone",
+  "Receipt Number",
+  "Duties",
+  "Billing Province Name",
+  "Shipping Province Name",
+  "Payment ID",
+  "Payment Terms Name",
+  "Next Payment Due At",
+  "Payment References",
+  "Paid Date",
 ];
 
 function onOpen() {
@@ -49,6 +116,11 @@ function normalizeShop_(shop) {
   return s;
 }
 
+function str_(v) {
+  if (v == null || v === "") return "";
+  return String(v);
+}
+
 function num_(v) {
   if (v == null || v === "") return 0;
   if (typeof v === "number" && isFinite(v)) return v;
@@ -68,9 +140,114 @@ function shippingAmount_(order) {
   return sum;
 }
 
+function shippingMethodTitles_(order) {
+  var lines = order.shipping_lines || [];
+  var t = [];
+  for (var i = 0; i < lines.length; i++) {
+    if (lines[i].title) t.push(String(lines[i].title));
+  }
+  return t.join("; ");
+}
+
+function discountCodes_(order) {
+  var codes = order.discount_codes || [];
+  var t = [];
+  for (var i = 0; i < codes.length; i++) {
+    if (codes[i].code) t.push(String(codes[i].code));
+  }
+  return t.join("; ");
+}
+
+function noteAttrs_(order) {
+  var na = order.note_attributes || [];
+  if (!na.length) return "";
+  try {
+    return JSON.stringify(na);
+  } catch (e) {
+    return "";
+  }
+}
+
+function paymentGateways_(order) {
+  var g = order.payment_gateway_names || [];
+  return g.length ? g.join("; ") : "";
+}
+
+function refundedAmount_(order) {
+  var refunds = order.refunds || [];
+  var sum = 0;
+  for (var i = 0; i < refunds.length; i++) {
+    var tr = refunds[i].transactions || [];
+    for (var j = 0; j < tr.length; j++) sum += num_(tr[j].amount);
+  }
+  if (sum > 0) return String(sum);
+  if (order.total_refunded != null) return str_(order.total_refunded);
+  return "";
+}
+
+function fulfilledAt_(order) {
+  var fs = order.fulfillments || [];
+  if (!fs.length) return "";
+  var latest = fs[0].updated_at || fs[0].created_at || "";
+  for (var i = 1; i < fs.length; i++) {
+    var u = fs[i].updated_at || fs[i].created_at || "";
+    if (u > latest) latest = u;
+  }
+  return latest;
+}
+
+function taxLinesNamesValues_(order, firstOnly) {
+  var lines = order.tax_lines || [];
+  var out = [];
+  for (var i = 0; i < 5; i++) {
+    if (i < lines.length && firstOnly) {
+      out.push(str_(lines[i].title));
+      out.push(str_(lines[i].price));
+    } else {
+      out.push("");
+      out.push("");
+    }
+  }
+  return out;
+}
+
+function billingCols_(addr) {
+  if (!addr)
+    return ["", "", "", "", "", "", "", "", "", ""];
+  return [
+    str_(addr.name),
+    str_(addr.address1),
+    str_(addr.address1),
+    str_(addr.address2),
+    str_(addr.company),
+    str_(addr.city),
+    str_(addr.zip),
+    str_(addr.province_code || addr.province),
+    str_(addr.country_code || addr.country),
+    str_(addr.phone),
+  ];
+}
+
+function shippingCols_(addr) {
+  if (!addr)
+    return ["", "", "", "", "", "", "", "", "", ""];
+  return [
+    str_(addr.name),
+    str_(addr.address1),
+    str_(addr.address1),
+    str_(addr.address2),
+    str_(addr.company),
+    str_(addr.city),
+    str_(addr.zip),
+    str_(addr.province_code || addr.province),
+    str_(addr.country_code || addr.country),
+    str_(addr.phone),
+  ];
+}
+
 function parseLinkHeader_(link) {
-  if (!link) return {};
   var out = {};
+  if (!link) return out;
   var parts = String(link).split(",");
   for (var i = 0; i < parts.length; i++) {
     var m = parts[i].match(/<([^>]+)>\s*;\s*rel="([^"]+)"/);
@@ -148,64 +325,125 @@ function fetchAllShopifyOrders_() {
   return { orders: all, pages: pages, truncated: truncated };
 }
 
+/**
+ * One flat row (80 cells) for a single line item. firstLine: order-level money/taxes on first line only.
+ */
+function buildExportRow_(order, line, firstLine) {
+  var r = new Array(NUM_SHOPIFY_IMPORT_COLS);
+  for (var z = 0; z < r.length; z++) r[z] = "";
+
+  var paidAt = order.processed_at || order.created_at || "";
+  var bill = order.billing_address;
+  var shipAddr = order.shipping_address;
+  var billCols = billingCols_(bill);
+  var shipCols = shippingCols_(shipAddr);
+
+  r[0] = str_(order.name);
+  r[1] = str_(order.email);
+  r[2] = str_(order.financial_status);
+  r[3] = paidAt;
+  r[4] = str_(order.fulfillment_status);
+  r[5] = fulfilledAt_(order);
+  r[6] = order.buyer_accepts_marketing ? "yes" : "no";
+  r[7] = str_(order.currency);
+  r[15] = str_(order.created_at);
+  r[44] = str_(order.note);
+  r[45] = noteAttrs_(order);
+  r[46] = str_(order.cancelled_at);
+  r[47] = paymentGateways_(order);
+  r[48] = "";
+  r[55] = str_(order.id);
+  r[56] = str_(order.tags);
+  r[57] = "";
+  if (order.risk != null) r[57] = typeof order.risk === "object" ? JSON.stringify(order.risk) : str_(order.risk);
+  r[58] = str_(order.source_name);
+  r[70] = str_(order.phone || (shipAddr && shipAddr.phone) || (bill && bill.phone));
+  r[71] = "";
+  r[72] = order.total_duties != null ? str_(order.total_duties) : "";
+  r[73] = bill ? str_(bill.province) : "";
+  r[74] = shipAddr ? str_(shipAddr.province) : "";
+  r[75] = "";
+  r[76] = "";
+  r[77] = "";
+  r[78] = "";
+  r[79] = paidAt;
+
+  if (firstLine) {
+    r[8] = str_(order.subtotal_price);
+    r[9] = String(shippingAmount_(order));
+    r[10] = str_(order.total_tax);
+    r[11] = str_(order.total_price);
+    r[12] = discountCodes_(order);
+    r[13] = str_(order.total_discounts);
+    r[14] = shippingMethodTitles_(order);
+    r[49] = refundedAmount_(order);
+    r[51] = "";
+    r[52] = "";
+    r[53] = order.location_id != null ? str_(order.location_id) : "";
+    r[54] = "";
+
+    var tv = taxLinesNamesValues_(order, true);
+    for (var t = 0; t < 10; t++) r[60 + t] = tv[t];
+  }
+
+  for (var b = 0; b < 10; b++) r[24 + b] = billCols[b];
+  for (var s = 0; s < 10; s++) r[34 + s] = shipCols[s];
+
+  r[16] = str_(line.quantity);
+  r[17] = str_(line.name);
+  r[18] = str_(line.price);
+  r[19] = line.compare_at_price != null ? str_(line.compare_at_price) : "";
+  r[20] = str_(line.sku);
+  r[21] = line.requires_shipping ? "true" : "false";
+  r[22] = line.taxable ? "true" : "false";
+  r[23] = str_(line.fulfillment_status);
+  r[50] = str_(line.vendor || "");
+  r[59] = line.total_discount != null ? str_(line.total_discount) : "";
+
+  return r;
+}
+
 function orderToDataRows_(order) {
   var fin = String(order.financial_status || "").toLowerCase();
   if (fin && fin !== "paid" && fin !== "partially_refunded") return [];
 
   var items = order.line_items || [];
   var rows = [];
-  var withSku = [];
+  var usable = [];
   for (var i = 0; i < items.length; i++) {
     var li = items[i];
-    var sku = String(li.sku || "").trim();
     var qty = Number(li.quantity) || 0;
-    if (sku && qty > 0) withSku.push(li);
+    if (qty > 0) usable.push(li);
   }
-  if (withSku.length === 0) return rows;
+  if (usable.length === 0) return rows;
 
-  var paidAt = order.processed_at || order.created_at || "";
-  var province = String(
-    (order.shipping_address && order.shipping_address.province_code) || ""
-  ).toUpperCase();
-  var ship = String(shippingAmount_(order));
-  var tax = String(order.total_tax != null ? order.total_tax : "0");
-  var total = String(order.total_price != null ? order.total_price : "0");
-  var disc = String(order.total_discounts != null ? order.total_discounts : "0");
-  var finDisplay = order.financial_status || "paid";
-
-  for (var j = 0; j < withSku.length; j++) {
-    var line = withSku[j];
-    rows.push([
-      order.name || "",
-      paidAt,
-      finDisplay,
-      j === 0 ? ship : "0",
-      j === 0 ? tax : "0",
-      j === 0 ? total : "0",
-      j === 0 ? disc : "0",
-      province,
-      String(line.sku).trim(),
-      String(line.quantity),
-      String(line.price != null ? line.price : "0"),
-    ]);
+  for (var j = 0; j < usable.length; j++) {
+    rows.push(buildExportRow_(order, usable[j], j === 0));
   }
   return rows;
 }
 
-/** Last non-empty column in row 1 (your full header row — we never overwrite row 1). */
 function lastHeaderColumn_(sheet) {
   var row = sheet.getRange(1, 1, 1, sheet.getMaxColumns()).getValues()[0];
-  var last = HEADER_ROW.length;
+  var last = NUM_SHOPIFY_IMPORT_COLS;
   for (var c = 0; c < row.length; c++) {
     if (row[c] !== "" && row[c] != null) last = c + 1;
   }
-  return Math.max(last, HEADER_ROW.length);
+  return Math.max(last, NUM_SHOPIFY_IMPORT_COLS);
+}
+
+function headersMatchSheet_(sheet) {
+  var row = sheet.getRange(1, 1, 1, NUM_SHOPIFY_IMPORT_COLS).getValues()[0];
+  for (var i = 0; i < NUM_SHOPIFY_IMPORT_COLS; i++) {
+    var a = String(row[i] || "").trim();
+    var b = String(EXPECTED_HEADERS_80[i] || "").trim();
+    if (a !== b) return false;
+  }
+  return true;
 }
 
 /**
- * Clears and refills RAW Shpfy Data from Shopify.
- * Preserves row 1 exactly (all your headers). Writes Shopify line-export columns A:K only;
- * columns right of K stay blank on data rows unless you extend the script later.
+ * Clears cols A–CB (1–80) from row 2 down; writes Shopify rows. Does not touch col 81+ (formulas).
  */
 function refreshRawShopifyData() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -214,11 +452,17 @@ function refreshRawShopifyData() {
     throw new Error('Sheet not found: "' + RAW_SHEET_NAME + '"');
   }
 
-  var ncols = HEADER_ROW.length;
-  var lastCol = lastHeaderColumn_(sheet);
+  if (!headersMatchSheet_(sheet)) {
+    ss.toast(
+      "Warning: row 1 cols A–CB should match EXPECTED_HEADERS_80 in script. Check spelling/spaces.",
+      "Shopify",
+      10
+    );
+  }
+
   var maxRows = sheet.getMaxRows();
   if (maxRows > 1) {
-    sheet.getRange(2, 1, maxRows, lastCol).clearContent();
+    sheet.getRange(2, 1, maxRows, NUM_SHOPIFY_IMPORT_COLS).clearContent();
   }
 
   var result = fetchAllShopifyOrders_();
@@ -229,25 +473,27 @@ function refreshRawShopifyData() {
   }
 
   if (matrix.length > 0) {
-    sheet.getRange(2, 1, matrix.length + 1, ncols).setValues(matrix);
+    sheet.getRange(2, 1, matrix.length + 1, NUM_SHOPIFY_IMPORT_COLS).setValues(matrix);
+  }
+
+  var tailStart = 2 + matrix.length;
+  if (tailStart <= maxRows && lastHeaderColumn_(sheet) > NUM_SHOPIFY_IMPORT_COLS) {
+    var lastC = lastHeaderColumn_(sheet);
+    sheet.getRange(tailStart, NUM_SHOPIFY_IMPORT_COLS + 1, maxRows, lastC).clearContent();
   }
 
   var msg =
-    "Shopify import done. Orders fetched: " +
+    "Shopify import done. Orders: " +
     result.orders.length +
-    ", raw rows: " +
+    ", rows: " +
     matrix.length +
     ", pages: " +
     result.pages +
-    (result.truncated ? " (TRUNCATED — raise MAX_PAGES or lower MONTHS_BACK)" : "");
+    (result.truncated ? " (TRUNCATED)" : "");
   Logger.log(msg);
-  SpreadsheetApp.getActiveSpreadsheet().toast(msg, "Shopify", 12);
+  ss.toast(msg, "Shopify", 12);
 }
 
-/**
- * Run once after authorizing the script. Creates a daily time trigger at ~1:00 AM America/Denver
- * (script timezone is set in appsscript.json when using clasp; otherwise set in Apps Script project settings).
- */
 function installDailyTrigger() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === "refreshRawShopifyData") {
