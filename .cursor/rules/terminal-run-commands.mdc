@@ -1,0 +1,22 @@
+---
+description: Make terminal commands runnable with one click/copy
+alwaysApply: true
+---
+
+# Terminal command runnable responses
+
+When the user asks to run commands, respond with:
+
+- A **single code block** containing the exact commands in the correct order.
+- Prefer **one command per line** (avoid accidental concatenation).
+- If the commands depend on `nvm`, include:
+  - `export NVM_DIR="$HOME/.nvm"`
+  - `[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"`
+- Use absolute paths when referring to this repo:
+  - `/Users/reedquinn/Projects/Pickle-Predictor`
+- When possible, also **execute the commands** via the terminal tool and report:
+  - the local URL (e.g. `http://localhost:5173/`)
+  - any errors and the next fix command(s)
+
+If a command requires an interactive browser/device login (e.g. `vercel login`), run it until it prints the URL/code, then tell the user exactly what to click/approve, and continue once authenticated.
+

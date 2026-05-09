@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 40px auto; max-width: 900px; padding: 0 16px; line-height: 1.5; }
+      h1, h2 { line-height: 1.2; }
+      code { background: #f4f4f5; padding: 2px 6px; border-radius: 6px; }
+      .muted { color: #52525b; }
+    </style>
+  </head>
+  <body>
+    <h1>Privacy Policy</h1>
+    <p class="muted">Last updated: <span id="d"></span></p>
+    <script>
+      document.getElementById("d").textContent = new Date().toISOString().slice(0, 10);
+    </script>
+
+    <h2>Overview</h2>
+    <p>
+      This dashboard (“App”) is used internally for Josh’s Pickles to analyze business data from connected services
+      such as QuickBooks Online and Shopify.
+    </p>
+
+    <h2>Data we access</h2>
+    <p>
+      When you authorize a connection, the App may access data from your connected account, such as company info,
+      accounting transactions, orders, customers, and related records, depending on the permissions you grant.
+    </p>
+
+    <h2>How we use data</h2>
+    <ul>
+      <li>To display analytics and dashboards</li>
+      <li>To compute financial and operational metrics</li>
+      <li>To support scenario modeling and reporting</li>
+    </ul>
+
+    <h2>How we store data</h2>
+    <p>
+      Access tokens and credentials are stored as encrypted environment variables on our hosting provider and are not
+      shared publicly. We do not sell personal information.
+    </p>
+
+    <h2>Sharing</h2>
+    <p>
+      Data is not shared with third parties except as required to operate the App (e.g. hosting) or as required by law.
+    </p>
+
+    <h2>Security</h2>
+    <p>
+      We use reasonable safeguards to protect data, including HTTPS and restricted access. No system is 100% secure.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      For questions, contact the App administrator.
+    </p>
+  </body>
+</html>
+
