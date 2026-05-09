@@ -192,8 +192,20 @@ function orderToDataRows_(order) {
   return rows;
 }
 
+/** Last non-empty column in row 1 (your full header row — we never overwrite row 1). */
+function lastHeaderColumn_(sheet) {
+  var row = sheet.getRange(1, 1, 1, sheet.getMaxColumns()).getValues()[0];
+  var last = HEADER_ROW.length;
+  for (var c = 0; c < row.length; c++) {
+    if (row[c] !== "" && row[c] != null) last = c + 1;
+  }
+  return Math.max(last, HEADER_ROW.length);
+}
+
 /**
  * Clears and refills RAW Shpfy Data from Shopify.
+ * Preserves row 1 exactly (all your headers). Writes Shopify line-export columns A:K only;
+ * columns right of K stay blank on data rows unless you extend the script later.
  */
 function refreshRawShopifyData() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -203,9 +215,10 @@ function refreshRawShopifyData() {
   }
 
   var ncols = HEADER_ROW.length;
+  var lastCol = lastHeaderColumn_(sheet);
   var maxRows = sheet.getMaxRows();
   if (maxRows > 1) {
-    sheet.getRange(2, 1, maxRows, ncols).clearContent();
+    sheet.getRange(2, 1, maxRows, lastCol).clearContent();
   }
 
   var result = fetchAllShopifyOrders_();
@@ -215,7 +228,6 @@ function refreshRawShopifyData() {
     for (var c = 0; c < chunk.length; c++) matrix.push(chunk[c]);
   }
 
-  sheet.getRange(1, 1, 1, ncols).setValues([HEADER_ROW]);
   if (matrix.length > 0) {
     sheet.getRange(2, 1, matrix.length + 1, ncols).setValues(matrix);
   }

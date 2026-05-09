@@ -9,7 +9,9 @@ This folder documents how to use the Apps Script in [`../../apps-script/shopify-
 2. **File → Make a copy** (name it e.g. `Shopify Inventory — auto-import`).
 3. Confirm the copy still has a tab named exactly **`RAW Shpfy Data`** and **`CLEAN Shpfy`** (and the rest of your tabs) unchanged.
 
-The script only **clears and refills** columns **A–K** on `RAW Shpfy Data` from row **1** (header) down. Keep any unrelated columns to the **right** of **K** empty or unused by this script (or extend the script later if you need more columns written).
+The script **does not change row 1** — your full header row stays as you designed it. It **clears row 2 downward** across **all columns through your last header column**, then writes Shopify data in **columns A–K** only (same 11 fields as a standard order export). Extra header columns **L onward** remain on row 1; data rows leave those cells **empty** unless you extend the script.
+
+**Important:** **CLEAN Shpfy** (and formulas) must still match the **order and names** of the first **11** columns your sheet expects for a Shopify export. If your headers A–K differ from the standard list below, either reorder row 1 to match or ask to add a column-mapping layer in the script.
 
 ## 2. Bind the script to the copy
 
