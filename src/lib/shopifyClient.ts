@@ -15,12 +15,19 @@ async function fetchJson(url: string) {
   }
 }
 
-export async function fetchShopifyOrdersBackfill(weeksBackMax = 52): Promise<unknown[]> {
+export async function fetchShopifyOrdersBackfill(weeksBackMax = 52): Promise<{
+  orders: unknown[];
+  truncated?: boolean;
+}> {
   const days = Math.max(1, Math.floor(weeksBackMax * 7));
   const createdAtMin = isoDateDaysAgo(days);
-  const url = `/api/shopify/pull?createdAtMin=${encodeURIComponent(createdAtMin)}`;
-  const json = await fetchJson(url) as { orders?: unknown };
-  return Array.isArray(json?.orders) ? (json.orders as unknown[]) : [];
+  const maxPages = 100;
+  const url = `/api/shopify/pull?createdAtMin=${encodeURIComponent(createdAtMin)}&maxPages=${maxPages}`;
+  const json = (await fetchJson(url)) as { orders?: unknown; meta?: { truncated?: boolean } };
+  return {
+    orders: Array.isArray(json?.orders) ? (json.orders as unknown[]) : [],
+    truncated: Boolean(json?.meta?.truncated),
+  };
 }
 
 export async function fetchShopifyOrdersRefresh(refreshDays = 30): Promise<unknown[]> {

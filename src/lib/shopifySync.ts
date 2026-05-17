@@ -25,12 +25,22 @@ export async function syncShopifyOnOpen(): Promise<{ mode: "none" | "backfill" |
 
   const orders =
     mode === "backfill"
-      ? await fetchShopifyOrdersBackfill(BACKFILL_WEEKS)
+      ? (await fetchShopifyOrdersBackfill(BACKFILL_WEEKS)).orders
       : await fetchShopifyOrdersRefresh(REFRESH_DAYS);
 
   const cleaned = cleanShopifyAdminOrders(orders, state.warehouseStateMap);
   useStore.getState().syncShopifyFromApi(cleaned.clean, mode);
   schedulePushSharedState();
   return { mode, count: cleaned.clean.length };
+}
+
+/** Replace local Shopify cache with a full ~52-week Admin API pull (paid / partially_refunded orders). */
+export async function syncShopifyFullBackfill(): Promise<{ count: number; truncated?: boolean }> {
+  const state = useStore.getState();
+  const { orders, truncated } = await fetchShopifyOrdersBackfill(BACKFILL_WEEKS);
+  const cleaned = cleanShopifyAdminOrders(orders, state.warehouseStateMap);
+  useStore.getState().syncShopifyFromApi(cleaned.clean, "backfill");
+  schedulePushSharedState();
+  return { count: cleaned.clean.length, truncated };
 }
 

@@ -253,15 +253,19 @@ export const useStore = create<AppState & Actions>()(
         })),
 
       setShopifyData: (raw, clean) =>
-        set({
+        set((state) => ({
           rawShopifyRows: raw,
           shopifyAllCleanOrders: clean,
-          cleanOrders: applyShopifyWeeksFilter(clean, clean, DEFAULT_SETTINGS.shopifyWeeksBack),
+          cleanOrders: applyShopifyWeeksFilter(
+            clean,
+            clean,
+            state.settings.shopifyWeeksBack ?? DEFAULT_SETTINGS.shopifyWeeksBack,
+          ),
           lastShopifyImportAt: new Date().toISOString(),
           lastShopifySyncAt: new Date().toISOString(),
           lastShopifySyncSource: "upload",
           ...computeShopifyCacheRange(clean),
-        }),
+        })),
       appendShopifyData: (raw, clean) =>
         set((state) => {
           const seen = new Set((state.shopifyAllCleanOrders || []).map((o) => o.orderName));
@@ -291,11 +295,11 @@ export const useStore = create<AppState & Actions>()(
 
       setShopifyWeeksBack: (weeksBack) =>
         set((state) => {
-          const wb = Number.isFinite(weeksBack) ? Math.max(0, Math.floor(weeksBack)) : 12;
+          const wb = Number.isFinite(weeksBack) ? Math.max(0, Math.floor(weeksBack)) : 52;
           const all = state.shopifyAllCleanOrders || [];
           return {
             settings: { ...state.settings, shopifyWeeksBack: wb },
-            cleanOrders: applyShopifyWeeksFilter(all, state.cleanOrders, wb),
+            cleanOrders: applyShopifyWeeksFilter(all, all, wb),
           };
         }),
 
@@ -309,7 +313,7 @@ export const useStore = create<AppState & Actions>()(
               : mergeCleanOrders(existing, incoming);
           return {
             shopifyAllCleanOrders: all,
-            cleanOrders: applyShopifyWeeksFilter(all, state.cleanOrders, state.settings.shopifyWeeksBack),
+            cleanOrders: applyShopifyWeeksFilter(all, all, state.settings.shopifyWeeksBack),
             lastShopifySyncAt: now,
             lastShopifySyncSource: "api",
             ...computeShopifyCacheRange(all),
@@ -412,7 +416,7 @@ export const useStore = create<AppState & Actions>()(
     {
       name: "pickle-predictor-v1",
       storage: createJSONStorage(() => localStorage),
-      version: 9,
+      version: 10,
       migrate: (persistedState: any, fromVersion: number) => {
         // v1 -> v2: backfill orderMultiple / orderUnitLabel on SKUs and components.
         if (fromVersion < 2 && persistedState) {
@@ -468,6 +472,20 @@ export const useStore = create<AppState & Actions>()(
           delete persistedState.settings.businessTimezone;
           if (Array.isArray(persistedState.adSpend)) {
             persistedState.adSpend = normalizeAdSpendWeekKeys(persistedState.adSpend);
+          }
+        }
+        // v9 -> v10: default Shopify window = 52 weeks; re-derive cleanOrders from full cache
+        if (fromVersion < 10 && persistedState) {
+          if (!persistedState.settings) persistedState.settings = { ...DEFAULT_SETTINGS };
+          if (persistedState.settings.shopifyWeeksBack === 12) {
+            persistedState.settings.shopifyWeeksBack = 52;
+          }
+          const all = Array.isArray(persistedState.shopifyAllCleanOrders)
+            ? persistedState.shopifyAllCleanOrders
+            : [];
+          if (all.length) {
+            const wb = persistedState.settings.shopifyWeeksBack ?? DEFAULT_SETTINGS.shopifyWeeksBack;
+            persistedState.cleanOrders = applyShopifyWeeksFilter(all, all, wb);
           }
         }
         // v4 -> v5: add receipts array and stamp existing POs with status="open".

@@ -1,9 +1,3 @@
-function requiredEnv(name) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env var: ${name}`);
-  return v;
-}
-
 function shopifyApiVersion() {
   return String(process.env.SHOPIFY_API_VERSION || "2026-04").trim();
 }
@@ -64,9 +58,6 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Ensure redirect URI exists for oauth flows even if not used here (helps catch env misconfig early).
-    requiredEnv("SHOPIFY_REDIRECT_URI");
-
     const { shop, token } = getShopAndToken(req);
     const apiVersion = shopifyApiVersion();
 
@@ -82,7 +73,11 @@ export default async function handler(req, res) {
     const orders = [];
     let pages = 0;
     let nextUrl = base.toString();
-    const maxPages = 10;
+    let maxPages = 80;
+    if (typeof req.query?.maxPages === "string") {
+      const n = parseInt(req.query.maxPages, 10);
+      if (Number.isFinite(n)) maxPages = Math.max(1, Math.min(120, n));
+    }
 
     while (nextUrl && pages < maxPages) {
       const { json, headers } = await shopifyGetJson(nextUrl, token);
@@ -99,6 +94,8 @@ export default async function handler(req, res) {
       meta: {
         count: orders.length,
         pages,
+        maxPages,
+        truncated: Boolean(nextUrl),
         apiVersion,
         createdAtMin,
         createdAtMax,

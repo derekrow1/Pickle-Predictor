@@ -21,14 +21,20 @@ function App() {
   const [page, setPage] = useState<Page>("order-now");
 
   useEffect(() => {
-    // Fire-and-forget: sync Shopify cache if stale/missing.
-    // Any errors are surfaced in the Data tab UI (we keep cached data on failures).
-    void syncShopifyOnOpen();
-  }, []);
-
-  useEffect(() => {
-    // Pull shared dataset on open so other devices see the same uploads.
-    void pullSharedStateOnOpen();
+    // Pull shared inventory/settings first, then sync Shopify. Running these in parallel
+    // could let a slower pull overwrite a fresh API sync.
+    void (async () => {
+      try {
+        await pullSharedStateOnOpen();
+      } catch (e) {
+        console.warn("pullSharedStateOnOpen failed", e);
+      }
+      try {
+        await syncShopifyOnOpen();
+      } catch (e) {
+        console.warn("syncShopifyOnOpen failed", e);
+      }
+    })();
   }, []);
 
   return (

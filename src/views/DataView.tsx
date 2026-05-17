@@ -14,7 +14,7 @@ import { cleanShopifyRows } from "../lib/cleanShopify";
 import { fmtDate, fmtNum } from "../lib/util";
 import type { InventorySnapshotRow } from "../types";
 import { PageHeader } from "../components/Layout";
-import { syncShopifyOnOpen } from "../lib/shopifySync";
+import { syncShopifyFullBackfill } from "../lib/shopifySync";
 import { adjustedSnapshotForCurrent, diffSnapshots } from "../lib/inventoryAdjust";
 import { schedulePushSharedState } from "../lib/sharedStateSync";
 
@@ -199,7 +199,7 @@ export function DataView() {
   };
 
   const whIds = state.warehouses.map((w) => w.id);
-  const weeksBack = state.settings.shopifyWeeksBack ?? 12;
+  const weeksBack = state.settings.shopifyWeeksBack ?? 52;
 
   return (
     <>
@@ -399,8 +399,9 @@ export function DataView() {
         <div className="card p-4">
           <div className="text-sm font-semibold mb-2">🛒 Shopify orders export</div>
           <div className="text-xs text-pickle-700 mb-2">
-            Auto-sync pulls up to ~1 year of Shopify orders and caches locally. Default view is last 12 weeks.
-            Upload is still available as a fallback. We auto-expand multi-pack SKUs into per-SKU jars.
+            Auto-sync on load refreshes recent orders; use <strong>Refresh from Shopify</strong> for a full
+            ~1-year pull (paid / partially refunded). Default view is the last 52 weeks. Upload is still
+            available as a fallback. Multi-pack SKUs expand into per-SKU jars.
           </div>
 
           <div className="border border-pickle-100 rounded-md p-3 mb-3">
@@ -411,7 +412,7 @@ export function DataView() {
                   className="input"
                   value={weeksBack === 0 ? "ALL" : String(weeksBack)}
                   onChange={(e) => {
-                    const v = e.target.value === "ALL" ? 0 : parseInt(e.target.value, 10) || 12;
+                    const v = e.target.value === "ALL" ? 0 : parseInt(e.target.value, 10) || 52;
                     setWeeksBack(v);
                   }}
                 >
@@ -428,11 +429,13 @@ export function DataView() {
               <button
                 className="btn-secondary"
                 onClick={async () => {
-                  setShopifySyncMsg("Refreshing from Shopify…");
+                  setShopifySyncMsg("Pulling up to ~1 year from Shopify (may take a minute)…");
                   try {
-                    const r = await syncShopifyOnOpen();
-                    if (r.mode === "none") setShopifySyncMsg("Already fresh (cached).");
-                    else setShopifySyncMsg(`Synced (${r.mode}) · ${r.count} orders processed.`);
+                    const r = await syncShopifyFullBackfill();
+                    const tail = r.truncated
+                      ? " Shopify returned more pages than we fetched — increase maxPages in api/shopify/pull if needed."
+                      : "";
+                    setShopifySyncMsg(`Synced full range · ${r.count} paid/partial orders in cache.${tail}`);
                   } catch (e: unknown) {
                     const err = e as { message?: string };
                     setShopifySyncMsg(`Refresh failed: ${err?.message || String(e)}`);
@@ -515,6 +518,9 @@ export function DataView() {
 
       <div className="card p-4 mb-4">
         <div className="text-sm font-semibold mb-2">Cleaned orders preview</div>
+        <div className="text-xs text-pickle-700 mb-2">
+          Oldest-first (up to 2,000 rows in the weeks filter). Scroll for recent orders.
+        </div>
         <div className="overflow-auto max-h-[420px]">
           <table className="text-xs w-full">
             <thead className="bg-pickle-50 sticky top-0">
@@ -533,9 +539,9 @@ export function DataView() {
               </tr>
             </thead>
             <tbody>
-              {state.cleanOrders
-                .slice(-200)
-                .reverse()
+              {[...state.cleanOrders]
+                .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+                .slice(0, 2000)
                 .map((o) => (
                   <tr key={o.orderName}>
                     <td>{o.orderName}</td>
