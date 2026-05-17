@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "mcp:business": "tsx mcp/business-data-server.ts"
+    "mcp:business": "tsx mcp/business-data-server.ts",
+    "export:shopify-12m": "node scripts/export-shopify-last-12-months.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
